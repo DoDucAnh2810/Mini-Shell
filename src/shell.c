@@ -13,14 +13,32 @@ static pid_t shell_pid;
 static pid_t foreground_pid;
 static pid_t waiting_pid;
 static bool waiting_SIGCHLD;
+static bool executing_handlerSIGCHLD;
 static struct cmdline *l;
 
 void handlerSIGCHLD() {
+	executing_handlerSIGCHLD = true;
+	int number, status;
 	pid_t pid;
-    while ((pid = waitpid(-1, NULL, WNOHANG | WUNTRACED)) > 0) {
+    while ((pid = waitpid(-1, &status, WNOHANG | WUNTRACED)) > 0) {
 		if (pid == waiting_pid)
 			waiting_SIGCHLD = false;
+		number = find_job_number(pid);
+		if (WIFEXITED(status)) {
+			if (number != NOT_FOUND)
+				set_job_state(number, FINISHED);
+		} else if(WIFSIGNALED(status)) {
+			if (number != NOT_FOUND)
+				set_job_state(number, TERMINATED);
+		} else if (WIFSTOPPED(status)) {
+			if (number == NOT_FOUND)
+				new_job(pid, STOPPED, l->seq);
+			else
+				set_job_state(number, STOPPED);
+		} else if (WIFCONTINUED(status))
+			set_job_state(number, RUNNING);		
 	}
+	executing_handlerSIGCHLD = false;
 }
 
 void handlerSIGQUIT() {
@@ -28,29 +46,26 @@ void handlerSIGQUIT() {
 }
 
 void handlerSIGINT() {
-	printf("\n"); fflush(stdout);
+	fprintf(stderr, "\n"); fflush(stderr);
 	if (foreground_pid == shell_pid) {
-		printf("\033[1;32mshell>\033[0m "); 
-		fflush(stdout);
+		fprintf(stderr, "\033[1;32mshell>\033[0m "); 
+		fflush(stderr);
 	} else {
 		Kill(foreground_pid, SIGINT);
 		foreground_pid = shell_pid;
+		while(executing_handlerSIGCHLD);
 	}
 }
 
 void handlerSIGTSTP() {
-	printf("\n"); fflush(stdout);
+	fprintf(stderr, "\n"); fflush(stderr);
 	if (foreground_pid == shell_pid) {
-		printf("\033[1;32mshell>\033[0m "); 
-		fflush(stdout);
+		fprintf(stderr, "\033[1;32mshell>\033[0m ");
+		fflush(stderr);
 	} else {
-		int number = find_job_number(foreground_pid);
-		if (number == NOT_FOUND)
-			new_job(foreground_pid, STOPPED, l->seq);
-		else
-			set_job_state(number, STOPPED);
 		Kill(foreground_pid, SIGTSTP);
 		foreground_pid = shell_pid;
+		while(executing_handlerSIGCHLD);
 	}
 }
 
@@ -136,11 +151,9 @@ int main(int argc, char **argv) {
 				continue;
 			}
 			pid = find_job_pid(number);
-			if (strcmp(cmd[0], "stop") == 0) {
-				set_job_state(number, STOPPED);
+			if (strcmp(cmd[0], "stop") == 0)
 				Kill(pid, SIGSTOP);
-			} else {
-				set_job_state(number, RUNNING);
+			else {
 				Kill(pid, SIGCONT);
 				if (strcmp(cmd[0], "fg") == 0)
 					foreground(pid);

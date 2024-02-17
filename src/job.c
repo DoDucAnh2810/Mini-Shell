@@ -1,4 +1,5 @@
 #include "job.h"
+#include "assert.h"
 
 static job_t *job_history = NULL;
 static int lastest_number = 0;
@@ -16,42 +17,37 @@ void init_job_history() {
 bool is_tracking(int number) {
     if (number < 1 && number > MAX_JOB)
         return false;
-    switch (job_history[number].state) {
-    case UNDEFINED:
-        return false;
-        break;
-    case STOPPED:
-        return true;
-        break;
-    case RUNNING:
-        if (kill(job_history[number].pid, 0) == 0)
-            return true;
-        else {
-            job_history[number].state = FINISHED;
-            return false;
-        }
-        break;
-    default: // FINISHED
-        return false;
-        break;
-    }
+    short state = job_history[number].state;
+    return state == STOPPED || state == RUNNING;
 }
 
 void print_job(int number) {
-    if (is_tracking(number)) {
-        printf("\033[1;35m[%d]\033[0m \033[1;33m%d\033[0m ", number, job_history[number].pid);
-        if (job_history[number].state == RUNNING)
-            printf("\033[1;34mRunning\033[0m  ");
-        else
-            printf("\033[1;31mStopped\033[0m  ");
-        printf("%s\n", job_history[number].command);
-        fflush(stdout);
+    short state = job_history[number].state;
+    assert(state != UNDEFINED);
+    if (state == FINISHED) return;
+    printf("\033[1;35m[%d]\033[0m \033[1;33m%d\033[0m ", 
+            number, job_history[number].pid);
+    switch (state) {
+    case STOPPED:
+        printf("\033[1;38;5;208mStopped   \033[0m ");
+        break;
+    case RUNNING:
+        printf("\033[1;34mRunning   \033[0m ");
+        break;
+    case TERMINATED:
+        printf("\033[1;31mTerminated\033[0m ");
+        break;
+    default: // Can not happen
+        break;
     }
+    printf("%s\n", job_history[number].command);
+    fflush(stdout);
 }
 
 void print_jobs() {
     for (int number = 1; number <= lastest_number; number++)
-        print_job(number);
+        if (is_tracking(number))
+            print_job(number);
 }
 
 int find_job_number(pid_t pid) {
@@ -64,7 +60,7 @@ int find_job_number(pid_t pid) {
 }
 
 pid_t find_job_pid(int number) {
-    if (1 <= number && number <= MAX_JOB && is_tracking(number))
+    if (is_tracking(number))
         return job_history[number].pid;
     else
         return NOT_FOUND;

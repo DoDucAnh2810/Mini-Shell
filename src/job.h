@@ -10,7 +10,8 @@
 #define UNDEFINED 0
 #define STOPPED 1
 #define RUNNING 2
-#define FINISHED 3
+#define TERMINATED 3
+#define FINISHED 4
 
 typedef struct {
 	int pid;
