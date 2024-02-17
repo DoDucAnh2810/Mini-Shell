@@ -1,0 +1,197 @@
+/*
+ * Copyright (C) 2002, Simon Nieuviarts
+ */
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <stdbool.h>
+#include "readcmd.h"
+#include "csapp.h"
+#include "job.h"
+
+static pid_t shell_pid;
+static pid_t foreground_pid;
+static pid_t waiting_pid;
+static bool waiting_SIGCHLD;
+static struct cmdline *l;
+
+void handlerSIGCHLD() {
+	pid_t pid;
+    while ((pid = waitpid(-1, NULL, WNOHANG | WUNTRACED)) > 0) {
+		if (pid == waiting_pid)
+			waiting_SIGCHLD = false;
+	}
+}
+
+void handlerSIGQUIT() {
+	exit(0);
+}
+
+void handlerSIGINT() {
+	printf("\n"); fflush(stdout);
+	if (foreground_pid == shell_pid) {
+		printf("\033[1;32mshell>\033[0m "); 
+		fflush(stdout);
+	} else {
+		Kill(foreground_pid, SIGINT);
+		foreground_pid = shell_pid;
+	}
+}
+
+void handlerSIGTSTP() {
+	printf("\n"); fflush(stdout);
+	if (foreground_pid == shell_pid) {
+		printf("\033[1;32mshell>\033[0m "); 
+		fflush(stdout);
+	} else {
+		int number = find_job_number(foreground_pid);
+		if (number == NOT_FOUND)
+			new_job(foreground_pid, STOPPED, l->seq);
+		else
+			set_job_state(number, STOPPED);
+		Kill(foreground_pid, SIGTSTP);
+		foreground_pid = shell_pid;
+	}
+}
+
+void execute(char **cmd) {
+	if (strcmp(cmd[0], "quit") == 0) {
+		Kill(0, SIGQUIT);
+		exit(0);
+	} else if (strcmp(cmd[0], "fg") == 0 ||
+			   strcmp(cmd[0], "bg") == 0 ||
+			   strcmp(cmd[0], "stop") == 0 ||
+			   strcmp(cmd[0], "jobs") == 0) {
+		fprintf(stderr, "Job control not defined in pipe\n");
+		exit(1);
+	} else 
+		execvp(cmd[0], cmd);	
+}
+
+void wait_for(pid_t pid) {
+	waiting_pid = pid;
+	waiting_SIGCHLD = true;
+	while (waiting_SIGCHLD);
+}
+
+void foreground(pid_t pid) {
+	foreground_pid = pid;
+	wait_for(pid);
+	foreground_pid = shell_pid;
+}
+
+int main(int argc, char **argv) {
+	Signal(SIGCHLD, handlerSIGCHLD);
+	Signal(SIGQUIT, handlerSIGQUIT);
+	Signal(SIGINT, handlerSIGINT);
+	Signal(SIGTSTP, handlerSIGTSTP);
+	
+	init_job_history();
+	shell_pid = foreground_pid = getpid();
+
+	while (1) {
+		int i, j, file_in, file_out, tube[2], seq_len, start;
+		char **cmd;
+		pid_t pid, pid_seq, pid_next_comm, pid_exec;
+		bool foregrounded;
+
+		/* Read command line */
+		printf("\033[1;32mshell>\033[0m ");
+		l = readcmd();
+
+		/* Treat command line */
+		if (!l) {
+			printf("\nexit\n");
+			exit(0);
+		}
+		if (l->err) {
+			printf("error: %s\n", l->err);
+			continue;
+		}
+		if (l->in)
+			file_in = Open(l->in, O_RDWR, 777);
+
+		if (l->out)
+			file_out = Open(l->out, O_CREAT | O_RDWR, 777);
+
+		/* Compute sequence length */
+		seq_len = 0;
+		while (l->seq[seq_len] != NULL)
+			seq_len++;
+		if (seq_len == 0)
+			continue;
+		
+		/* Check for integrated job command at top level */
+		start = 0;
+		cmd = l->seq[start];
+		if (strcmp(cmd[0], "jobs") == 0) {
+			print_jobs();
+			start++;
+		} else if (strcmp(cmd[0], "fg") == 0 ||
+				   strcmp(cmd[0], "bg") == 0 ||
+				   strcmp(cmd[0], "stop") == 0) {
+			int number = job_argument_parser(cmd[1]);
+			if (number == NOT_FOUND) {
+				fprintf(stderr, "%s: Missing or invalid argument\n", cmd[0]);
+				continue;
+			}
+			pid = find_job_pid(number);
+			if (strcmp(cmd[0], "stop") == 0) {
+				set_job_state(number, STOPPED);
+				Kill(pid, SIGSTOP);
+			} else {
+				set_job_state(number, RUNNING);
+				Kill(pid, SIGCONT);
+				if (strcmp(cmd[0], "fg") == 0)
+					foreground(pid);
+			}
+			start++;
+		}
+		if (start == seq_len)
+			continue;
+
+		/* Check for background character '&' */
+		foregrounded = true;
+		for (j = start; l->seq[seq_len-1][j] != NULL; j++)
+			if (strcmp(l->seq[seq_len-1][j], "&") == 0) {
+				foregrounded = false;
+				l->seq[seq_len-1][j] = NULL;
+			}
+
+		/* Sequence of non-integrated command */
+		pid_seq = Fork();
+		if (pid_seq) { // shell
+			if (foregrounded)
+				foreground(pid_seq);
+			else
+				new_job(pid_seq, RUNNING, l->seq);
+		} else { // sequence execution
+			dup2(file_in, 0);
+			for (i = start; i < seq_len; i++) {
+				cmd = l->seq[i];
+				if (i == seq_len - 1) {
+					if (l->out) 
+						dup2(file_out, 1);
+					execute(cmd);
+				} else {
+					pipe(tube);
+					if ((pid_next_comm = Fork())) { // command at the head
+						Close(tube[0]);
+						if ((pid_exec = Fork())) { // just wait
+							Close(tube[1]);
+							wait_for(pid_exec);
+							wait_for(pid_next_comm);
+							exit(0);
+						} else { // excute the commmand
+							dup2(tube[1], 1);
+							execute(cmd);
+						}
+					} else { // the rest of the sequence
+						Close(tube[1]);
+						dup2(tube[0], 0);
+					}
+				}
+			}
+		}
+	}
+}
