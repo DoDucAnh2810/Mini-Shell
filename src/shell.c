@@ -51,7 +51,7 @@ void handlerSIGINT() {
 		fprintf(stderr, "\033[1;32mshell>\033[0m "); 
 		fflush(stderr);
 	} else {
-		Kill(foreground_pid, SIGINT);
+		Kill(-foreground_pid, SIGINT);
 		foreground_pid = shell_pid;
 		while(executing_handlerSIGCHLD);
 	}
@@ -63,24 +63,37 @@ void handlerSIGTSTP() {
 		fprintf(stderr, "\033[1;32mshell>\033[0m ");
 		fflush(stderr);
 	} else {
-		Kill(foreground_pid, SIGTSTP);
+		Kill(-foreground_pid, SIGTSTP);
 		foreground_pid = shell_pid;
 		while(executing_handlerSIGCHLD);
 	}
 }
 
 void execute(char **cmd) {
-	if (strcmp(cmd[0], "quit") == 0) {
-		Kill(0, SIGQUIT);
-		exit(0);
-	} else if (strcmp(cmd[0], "fg") == 0 ||
-			   strcmp(cmd[0], "bg") == 0 ||
-			   strcmp(cmd[0], "stop") == 0 ||
-			   strcmp(cmd[0], "jobs") == 0) {
-		fprintf(stderr, "Job control not defined in pipe\n");
+	if (strcmp(cmd[0], "fg") == 0 ||
+		strcmp(cmd[0], "bg") == 0 ||
+		strcmp(cmd[0], "stop") == 0 ||
+		strcmp(cmd[0], "jobs") == 0 ||
+		strcmp(cmd[0], "quit") == 0) {
+		fprintf(stderr, "Integrated command not defined in pipe\n");
 		exit(1);
-	} else 
-		execvp(cmd[0], cmd);	
+	} else {
+		if (execvp(cmd[0], cmd) == -1) {
+			switch (errno) {
+			case EACCES:
+				fprintf(stderr, "%s: Permission denied\n", cmd[0]);
+				break;
+			case ENOENT:
+				fprintf(stderr, "%s: Command not found\n", cmd[0]);
+				break;
+			default:
+				perror(cmd[0]);
+				break;
+			}
+			exit(1);
+		}
+		exit(0);
+	}
 }
 
 void wait_for(pid_t pid) {
@@ -123,11 +136,40 @@ int main(int argc, char **argv) {
 			printf("error: %s\n", l->err);
 			continue;
 		}
-		if (l->in)
-			file_in = Open(l->in, O_RDWR, 777);
-
-		if (l->out)
-			file_out = Open(l->out, O_CREAT | O_RDWR, 777);
+		if (l->in){
+			file_in = Open(l->in, O_RDONLY, 777);
+			if (file_in == -1) { 
+				switch (errno) {
+				case EACCES:
+					fprintf(stderr, "%s: Permission denied\n", l->in);
+					break;
+				case ENOENT:
+					fprintf(stderr, "%s: No such file in directory\n", l->in);
+					break;
+				default:
+					perror(l->in);
+					break;
+				}
+				exit(1);
+			}
+		}
+		if (l->out) {
+			file_out = Open(l->out, O_CREAT | O_WRONLY, 777);
+			if (file_out == -1) { 
+				switch (errno) {
+				case EACCES:
+					fprintf(stderr, "%s: Permission denied\n", l->out);
+					break;
+				case ENOENT:
+					fprintf(stderr, "%s: No such file in directory\n", l->out);
+					break;
+				default:
+					perror(l->out);
+					break;
+				}
+				exit(1);
+			}
+		}
 
 		/* Compute sequence length */
 		seq_len = 0;
@@ -139,7 +181,9 @@ int main(int argc, char **argv) {
 		/* Check for integrated job command at top level */
 		start = 0;
 		cmd = l->seq[start];
-		if (strcmp(cmd[0], "jobs") == 0) {
+		if (strcmp(cmd[0], "quit") == 0)
+			exit(0);
+		else if (strcmp(cmd[0], "jobs") == 0) {
 			print_jobs();
 			start++;
 		} else if (strcmp(cmd[0], "fg") == 0 ||
@@ -152,9 +196,9 @@ int main(int argc, char **argv) {
 			}
 			pid = find_job_pid(number);
 			if (strcmp(cmd[0], "stop") == 0)
-				Kill(pid, SIGSTOP);
+				Kill(-pid, SIGSTOP);
 			else {
-				Kill(pid, SIGCONT);
+				Kill(-pid, SIGCONT);
 				if (strcmp(cmd[0], "fg") == 0)
 					foreground(pid);
 			}
@@ -174,6 +218,7 @@ int main(int argc, char **argv) {
 		/* Sequence of non-integrated command */
 		pid_seq = Fork();
 		if (pid_seq) { // shell
+			Setpgid(pid_seq, pid_seq);
 			if (foregrounded)
 				foreground(pid_seq);
 			else

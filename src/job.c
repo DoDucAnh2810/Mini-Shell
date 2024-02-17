@@ -6,6 +6,10 @@ static int lastest_number = 0;
 
 void init_job_history() {
     job_history = (job_t *)malloc(sizeof(job_t) * (MAX_JOB+1));
+    if (job_history == NULL) {
+        fprintf(stderr, "job: Failed to initialize job history\n");
+        exit(1);
+    }
     for (int i = 0; i < MAX_JOB; i++) {
         job_t job;
         job.state = UNDEFINED;
@@ -74,7 +78,7 @@ void set_job_state(int number, short state) {
 
 void new_job(pid_t pid, short state, char ***seq) {
     if (lastest_number == MAX_JOB) {
-        fprintf(stderr, "job - new_job(): Out of memory for more jobs.\n");
+        fprintf(stderr, "job: Out of memory for more jobs.\n");
         exit(1);
     }
     lastest_number++;
@@ -82,6 +86,10 @@ void new_job(pid_t pid, short state, char ***seq) {
     job.pid = pid;
     job.state = state;
     job.command = (char *)malloc(MAX_COMMAND+1);
+    if (job.command == 0) {
+        fprintf(stderr, "job: Out of memory for more jobs.\n");
+        exit(1);
+    }
     int increase, offset = 0;
     for (int i = 0; seq[i] != NULL; i++) {
         for (int j = 0; seq[i][j] != NULL; j++) {
