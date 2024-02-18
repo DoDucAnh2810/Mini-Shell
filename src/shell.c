@@ -150,7 +150,7 @@ int main(int argc, char **argv) {
 					perror(l->in);
 					break;
 				}
-				exit(1);
+				continue;
 			}
 		}
 		if (l->out) {
@@ -167,7 +167,7 @@ int main(int argc, char **argv) {
 					perror(l->out);
 					break;
 				}
-				exit(1);
+				continue;
 			}
 		}
 
@@ -216,8 +216,7 @@ int main(int argc, char **argv) {
 			}
 
 		/* Sequence of non-integrated command */
-		pid_seq = Fork();
-		if (pid_seq) { // shell
+		if ((pid_seq = Fork())) { // shell
 			Setpgid(pid_seq, pid_seq);
 			if (foregrounded)
 				foreground(pid_seq);

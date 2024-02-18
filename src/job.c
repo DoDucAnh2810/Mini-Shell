@@ -135,4 +135,3 @@ int job_argument_parser(char *str) {
     }
     return number;
 }
-
