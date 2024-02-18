@@ -106,7 +106,7 @@ int main(int argc, char **argv) {
 			printf("error: %s\n", l->err);
 			continue;
 		}
-		if (l->in){
+		if (l->in) {
 			file_in = Open(l->in, O_RDONLY, 777);
 			if (file_in == -1) { 
 				switch (errno) {
