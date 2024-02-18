@@ -148,7 +148,7 @@ int main(int argc, char **argv) {
 		if (seq_len == 0)
 			continue;
 		
-		/* Check for integrated job command at top level */
+		/* Check for integrated command at top level */
 		start = 0;
 		cmd = l->seq[start];
 		if (strcmp(cmd[0], "quit") == 0)
@@ -156,8 +156,7 @@ int main(int argc, char **argv) {
 		else if (strcmp(cmd[0], "jobs") == 0) {
 			print_jobs();
 			start++;
-		} else if (strcmp(cmd[0], "fg") == 0 ||
-				   strcmp(cmd[0], "bg") == 0 ||
+		} else if (strcmp(cmd[0], "fg") == 0 || strcmp(cmd[0], "bg") == 0 ||
 				   strcmp(cmd[0], "stop") == 0) {
 			int number = job_argument_parser(cmd[1]);
 			if (number == NOT_FOUND) {
