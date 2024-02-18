@@ -10,16 +10,13 @@
 #include "csapp.h"
 #include "job.h"
 
-static pid_t waiting_pid;
-static bool waiting_SIGCHLD;
+static int nb_reaped;
 static struct cmdline *l;
 
 void handlerSIGCHLD() {
 	int number, status;
 	pid_t pid;
     while ((pid = waitpid(-1, &status, WNOHANG | WUNTRACED)) > 0) {
-		if (pid == waiting_pid)
-			waiting_SIGCHLD = false;
 		number = find_job_number(pid);
 		if (WIFEXITED(status)) {
 			if (number != NOT_FOUND)
@@ -33,7 +30,8 @@ void handlerSIGCHLD() {
 			else
 				set_job_state(number, STOPPED);
 		} else if (WIFCONTINUED(status))
-			set_job_state(number, RUNNING);		
+			set_job_state(number, RUNNING);
+		nb_reaped++;
 	}
 }
 
@@ -43,10 +41,8 @@ void handlerPrintNewLine() {
 }
 
 void execute(char **cmd) {
-	if (strcmp(cmd[0], "fg") == 0 ||
-		strcmp(cmd[0], "bg") == 0 ||
-		strcmp(cmd[0], "stop") == 0 ||
-		strcmp(cmd[0], "jobs") == 0 ||
+	if (strcmp(cmd[0], "fg") == 0 || strcmp(cmd[0], "bg") == 0 ||
+		strcmp(cmd[0], "stop") == 0 || strcmp(cmd[0], "jobs") == 0 ||
 		strcmp(cmd[0], "quit") == 0) {
 		fprintf(stderr, "Integrated command not defined in pipe\n");
 		exit(1);
@@ -69,15 +65,9 @@ void execute(char **cmd) {
 	}
 }
 
-void wait_for(pid_t pid) {
-	waiting_pid = pid;
-	waiting_SIGCHLD = true;
-	while (waiting_SIGCHLD);
-}
-
 void foreground(pid_t pid) {
 	tcsetpgrp(STDERR_FILENO, pid);
-	wait_for(pid);
+	while (nb_reaped < 1);
 	sigset_t set;
 	Sigemptyset(&set);
 	Sigaddset(&set, SIGTTOU);
@@ -100,6 +90,7 @@ int main(int argc, char **argv) {
 		char **cmd;
 		pid_t pid, pid_seq, pid_next_comm, pid_exec;
 		bool foregrounded;
+		nb_reaped = 0;
 
 		/* Read command line */
 		nanosleep(&next_line_delay, NULL);
@@ -202,12 +193,12 @@ int main(int argc, char **argv) {
 			else
 				new_job(pid_seq, RUNNING, l->seq);
 		} else { // sequence execution
-			dup2(file_in, 0);
+			Dup2(file_in, 0);
 			for (i = start; i < seq_len; i++) {
 				cmd = l->seq[i];
 				if (i == seq_len - 1) {
-					if (l->out) 
-						dup2(file_out, 1);
+					if (l->out)
+						Dup2(file_out, 1);
 					execute(cmd);
 				} else {
 					pipe(tube);
@@ -215,16 +206,15 @@ int main(int argc, char **argv) {
 						Close(tube[0]);
 						if ((pid_exec = Fork())) { // just wait
 							Close(tube[1]);
-							wait_for(pid_exec);
-							wait_for(pid_next_comm);
+							while (nb_reaped < 2);
 							exit(0);
 						} else { // excute the commmand
-							dup2(tube[1], 1);
+							Dup2(tube[1], 1);
 							execute(cmd);
 						}
 					} else { // the rest of the sequence
 						Close(tube[1]);
-						dup2(tube[0], 0);
+						Dup2(tube[0], 0);
 					}
 				}
 			}
