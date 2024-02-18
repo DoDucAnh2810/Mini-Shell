@@ -5,19 +5,16 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdbool.h>
+#include <time.h>
 #include "readcmd.h"
 #include "csapp.h"
 #include "job.h"
 
-static pid_t shell_pid;
-static pid_t foreground_pid;
 static pid_t waiting_pid;
 static bool waiting_SIGCHLD;
-static bool executing_handlerSIGCHLD;
 static struct cmdline *l;
 
 void handlerSIGCHLD() {
-	executing_handlerSIGCHLD = true;
 	int number, status;
 	pid_t pid;
     while ((pid = waitpid(-1, &status, WNOHANG | WUNTRACED)) > 0) {
@@ -38,35 +35,11 @@ void handlerSIGCHLD() {
 		} else if (WIFCONTINUED(status))
 			set_job_state(number, RUNNING);		
 	}
-	executing_handlerSIGCHLD = false;
 }
 
-void handlerSIGQUIT() {
-	exit(0);
-}
-
-void handlerSIGINT() {
-	fprintf(stderr, "\n"); fflush(stderr);
-	if (foreground_pid == shell_pid) {
-		fprintf(stderr, "\033[1;32mshell>\033[0m "); 
-		fflush(stderr);
-	} else {
-		Kill(-foreground_pid, SIGINT);
-		foreground_pid = shell_pid;
-		while(executing_handlerSIGCHLD);
-	}
-}
-
-void handlerSIGTSTP() {
-	fprintf(stderr, "\n"); fflush(stderr);
-	if (foreground_pid == shell_pid) {
-		fprintf(stderr, "\033[1;32mshell>\033[0m ");
-		fflush(stderr);
-	} else {
-		Kill(-foreground_pid, SIGTSTP);
-		foreground_pid = shell_pid;
-		while(executing_handlerSIGCHLD);
-	}
+void handlerPrintNewLine() {
+	printf("\n\033[1;32mshell>\033[0m ");
+	fflush(stdout);
 }
 
 void execute(char **cmd) {
@@ -103,19 +76,24 @@ void wait_for(pid_t pid) {
 }
 
 void foreground(pid_t pid) {
-	foreground_pid = pid;
+	tcsetpgrp(STDERR_FILENO, pid);
 	wait_for(pid);
-	foreground_pid = shell_pid;
+	sigset_t set;
+	Sigemptyset(&set);
+	Sigaddset(&set, SIGTTOU);
+	Sigprocmask(SIG_BLOCK, &set, NULL);
+	tcsetpgrp(STDERR_FILENO, Getpgrp());
+	Sigprocmask(SIG_UNBLOCK, &set, NULL);
 }
 
 int main(int argc, char **argv) {
 	Signal(SIGCHLD, handlerSIGCHLD);
-	Signal(SIGQUIT, handlerSIGQUIT);
-	Signal(SIGINT, handlerSIGINT);
-	Signal(SIGTSTP, handlerSIGTSTP);
-	
+	Signal(SIGINT, handlerPrintNewLine);
+	Signal(SIGTSTP, handlerPrintNewLine);
 	init_job_history();
-	shell_pid = foreground_pid = getpid();
+	struct timespec next_line_delay;
+	next_line_delay.tv_sec = 0;
+	next_line_delay.tv_nsec = 10000000;
 
 	while (1) {
 		int i, j, file_in, file_out, tube[2], seq_len, start;
@@ -124,6 +102,7 @@ int main(int argc, char **argv) {
 		bool foregrounded;
 
 		/* Read command line */
+		nanosleep(&next_line_delay, NULL);
 		printf("\033[1;32mshell>\033[0m ");
 		l = readcmd();
 
