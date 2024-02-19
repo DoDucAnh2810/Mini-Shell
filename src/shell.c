@@ -16,15 +16,21 @@ static struct cmdline *l;
 void handlerSIGCHLD() {
 	int number, status;
 	pid_t pid;
-    while ((pid = waitpid(-1, &status, WNOHANG | WUNTRACED)) > 0) {
+    while ((pid = waitpid(-1, &status, WNOHANG | WUNTRACED | WCONTINUED)) > 0) {
 		number = find_job_number(pid);
 		if (WIFEXITED(status)) {
 			if (number != NOT_FOUND)
 				set_job_state(number, FINISHED);
 		} else if(WIFSIGNALED(status)) {
+			if (WTERMSIG(status) == SIGINT) {
+				printf("\n"); fflush(stdout);
+			}
 			if (number != NOT_FOUND)
 				set_job_state(number, TERMINATED);
 		} else if (WIFSTOPPED(status)) {
+			if (WSTOPSIG(status) == SIGTSTP) {
+				printf("\n"); fflush(stdout);
+			}
 			if (number == NOT_FOUND)
 				new_job(pid, STOPPED, l->seq);
 			else

@@ -125,7 +125,7 @@ int job_argument_parser(char *str) {
     pid_t pid;
     if (str[0] == '%') {
         number = strtol(str + 1, &endptr, 0);
-        if (*endptr != '\0')
+        if (!is_tracking(number) || *endptr != '\0')
             return NOT_FOUND;
     } else {
         pid = strtol(str, &endptr, 0);
