@@ -16,7 +16,7 @@ static struct cmdline *l;
 void handlerSIGCHLD() {
 	int number, status;
 	pid_t pid;
-    while ((pid = waitpid(-1, &status, WNOHANG | WUNTRACED | WCONTINUED)) > 0) {
+    while ((pid = waitpid(-1, &status, WNOHANG | WUNTRACED)) > 0) {
 		number = find_job_number(pid);
 		if (WIFEXITED(status)) {
 			if (number != NOT_FOUND)
@@ -35,8 +35,7 @@ void handlerSIGCHLD() {
 				new_job(pid, STOPPED, l->seq);
 			else
 				set_job_state(number, STOPPED);
-		} else if (WIFCONTINUED(status))
-			set_job_state(number, RUNNING);
+		}
 		nb_reaped++;
 	}
 }
@@ -157,9 +156,10 @@ int main(int argc, char **argv) {
 		/* Check for integrated command at top level */
 		start = 0;
 		cmd = l->seq[start];
-		if (strcmp(cmd[0], "quit") == 0)
+		if (strcmp(cmd[0], "quit") == 0) {
+			kill_all_job();
 			exit(0);
-		else if (strcmp(cmd[0], "jobs") == 0) {
+		} else if (strcmp(cmd[0], "jobs") == 0) {
 			print_jobs();
 			start++;
 		} else if (strcmp(cmd[0], "fg") == 0 || strcmp(cmd[0], "bg") == 0 ||
@@ -173,6 +173,7 @@ int main(int argc, char **argv) {
 			if (strcmp(cmd[0], "stop") == 0)
 				Kill(-pid, SIGSTOP);
 			else {
+				set_job_state(number, RUNNING);
 				Kill(-pid, SIGCONT);
 				if (strcmp(cmd[0], "fg") == 0)
 					foreground(pid);

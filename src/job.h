@@ -35,4 +35,6 @@ void new_job(pid_t pid, short state, char ***seq);
 
 int job_argument_parser(char *str);
 
+void kill_all_job();
+
 #endif

@@ -135,3 +135,11 @@ int job_argument_parser(char *str) {
     }
     return number;
 }
+
+void kill_all_job() {
+    for (int number = 1; number <= lastest_number; number++) {
+        job_t job = job_history[number];
+        if (is_tracking(number))
+            Kill(-job.pid, SIGKILL);
+    }
+}
