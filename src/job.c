@@ -74,8 +74,11 @@ pid_t find_job_pid(int number) {
 void set_job_state(int number, short state) {
     job_history[number].state = state;
     print_job(number);
-    if (!is_tracking(highest_number))
+    if (!is_tracking(highest_number)) {
+        if (job_history[highest_number].command)
+            free(job_history[highest_number].command);
         highest_number--;
+    }
 }
 
 void new_job(pid_t pid, short state, char *seq_string) {
@@ -125,6 +128,16 @@ void kill_all_job() {
         job_t job = job_history[number];
         if (is_tracking(number))
             Kill(-job.pid, SIGKILL);
+    }
+}
+
+int job_count() {
+    return highest_number;
+}
+
+void destroy_job_history() {
+    for (int number = 1; number <= MAX_JOB; number++) {
+        job_t job = job_history[number];
         if (job.command)
             free(job.command);
     }

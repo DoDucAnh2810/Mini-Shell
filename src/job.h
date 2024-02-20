@@ -37,4 +37,8 @@ int job_argument_parser(char *str);
 
 void kill_all_job();
 
+int job_count();
+
+void destroy_job_history();
+
 #endif

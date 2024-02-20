@@ -50,7 +50,7 @@ void execute(char **cmd) {
 	if (strcmp(cmd[0], "fg") == 0 || strcmp(cmd[0], "bg") == 0 ||
 		strcmp(cmd[0], "stop") == 0 || strcmp(cmd[0], "jobs") == 0 ||
 		strcmp(cmd[0], "quit") == 0) {
-		fprintf(stderr, "Integrated command not defined in pipe\n");
+		fprintf(stderr, "%s: Integrated command not defined in pipe\n", cmd[0]);
 		exit(1);
 	} else {
 		if (execvp(cmd[0], cmd) == -1) {
@@ -87,6 +87,27 @@ void foreground(pid_t pid) {
 	Sigprocmask(SIG_UNBLOCK, &set, NULL);
 }
 
+void end_session() {
+	kill_all_job();
+	while (nb_reaped < job_count());
+	destroy_job_history();
+	if (l) {
+		if (l->in) free(l->in);
+		if (l->out) free(l->out);
+		if (l->seq) {
+			for (int i = 0; l->seq[i]!=0; i++) {
+				char **cmd = l->seq[i];
+				for (int j = 0; cmd[j]!=0; j++) 
+					free(cmd[j]);
+				free(cmd);
+			}
+			free(l->seq);
+		}
+	}
+	free(l);
+	exit(0);
+}
+
 int main(int argc, char **argv) {
 	Signal(SIGCHLD, handlerSIGCHLD);
 	Signal(SIGINT, handlerPrintNewLine);
@@ -109,8 +130,7 @@ int main(int argc, char **argv) {
 		/* Treat command line */
 		if (!l) {
 			printf("exit\n");
-			kill_all_job();
-			exit(0);
+			end_session();
 		}
 		if (l->err) {
 			printf("error: %s\n", l->err);
@@ -157,10 +177,9 @@ int main(int argc, char **argv) {
 		nb_reaped = 0;
 		start = 0;
 		cmd = l->seq[start];
-		if (strcmp(cmd[0], "quit") == 0) {
-			kill_all_job();
-			exit(0);
-		} else if (strcmp(cmd[0], "jobs") == 0) {
+		if (strcmp(cmd[0], "quit") == 0)
+			end_session();
+		else if (strcmp(cmd[0], "jobs") == 0) {
 			print_jobs();
 			start++;
 		} else if (strcmp(cmd[0], "fg") == 0 || strcmp(cmd[0], "bg") == 0 ||
