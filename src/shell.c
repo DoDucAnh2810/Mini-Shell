@@ -6,6 +6,7 @@
 #include <string.h>
 #include <stdbool.h>
 #include <time.h>
+#include <assert.h>
 #include "readcmd.h"
 #include "csapp.h"
 #include "job.h"
@@ -28,7 +29,6 @@ void handlerSIGCHLD() {
 			if (number != NOT_FOUND)
 				set_job_state(number, TERMINATED);
 		} else if (WIFSTOPPED(status)) {
-			fprintf(stderr, "[%d] received SIGCHLD because %d received %d\n", getpid(), pid, WSTOPSIG(status));
 			if (WSTOPSIG(status) == SIGTSTP) {
 				printf("\n"); fflush(stdout);
 			}
@@ -47,7 +47,6 @@ void handlerPrintNewLine() {
 }
 
 void execute(char **cmd) {
-	fprintf(stderr, "[%d] executed %s\n", getpid(), cmd[0]);
 	if (strcmp(cmd[0], "fg") == 0 || strcmp(cmd[0], "bg") == 0 ||
 		strcmp(cmd[0], "stop") == 0 || strcmp(cmd[0], "jobs") == 0 ||
 		strcmp(cmd[0], "quit") == 0) {
@@ -77,7 +76,6 @@ void foreground(pid_t pid) {
 	Sigemptyset(&set);
 	Sigaddset(&set, SIGTTOU);
 	Sigprocmask(SIG_BLOCK, &set, NULL);
-	fprintf(stderr, "[%d] set foreground for %d\n", getpid(), pid);
 	tcsetpgrp(STDIN_FILENO, pid);
 	tcsetpgrp(STDOUT_FILENO, pid);
 	tcsetpgrp(STDERR_FILENO, pid);
@@ -100,10 +98,9 @@ int main(int argc, char **argv) {
 	next_line_delay.tv_nsec = 10000000;
 
 	while (1) {
-		int i, j, file_in, file_out, tube[2], seq_len, start;
+		int i, file_in, file_out, tube[2], start;
 		char **cmd;
 		pid_t pid, pid_seq, pid_next_comm, pid_exec;
-		bool foregrounded;
 		nb_reaped = 0;
 
 		/* Read command line */
@@ -154,12 +151,7 @@ int main(int argc, char **argv) {
 				continue;
 			}
 		}
-
-		/* Compute sequence length */
-		seq_len = 0;
-		while (l->seq[seq_len] != NULL)
-			seq_len++;
-		if (seq_len == 0)
+		if (l->seq_len == 0)
 			continue;
 		
 		/* Check for integrated command at top level */
@@ -191,50 +183,39 @@ int main(int argc, char **argv) {
 			nb_reaped = 0;
 			start++;
 		}
-		if (start == seq_len)
+		if (start == l->seq_len)
 			continue;
-
-		/* Check for background character '&' */
-		foregrounded = true;
-		for (j = start; l->seq[seq_len-1][j] != NULL; j++)
-			if (strcmp(l->seq[seq_len-1][j], "&") == 0) {
-				foregrounded = false;
-				l->seq[seq_len-1][j] = NULL;
-			}
 
 		/* Sequence of non-integrated command */
 		if ((pid_seq = Fork())) { // shell
-			fprintf(stderr, "[shell %d] created seq %d\n", getpid(), pid_seq);
 			Setpgid(pid_seq, pid_seq);
-			if (foregrounded)
+			if (l->foregrounded)
 				foreground(pid_seq);
 			else
 				new_job(pid_seq, RUNNING, l->seq);
 		} else { // sequence execution
-			Dup2(file_in, 0);
-			for (i = start; i < seq_len; i++) {
+			dup2(file_in, 0);
+			for (i = start; i < l->seq_len; i++) {
 				cmd = l->seq[i];
-				if (i == seq_len - 1) {
+				if (i == l->seq_len - 1) {
 					if (l->out)
-						Dup2(file_out, 1);
+						dup2(file_out, 1);
 					execute(cmd);
 				} else {
 					pipe(tube);
 					if ((pid_next_comm = Fork())) { // command at the head
 						Close(tube[0]);
-						fprintf(stderr, "[%d] created next comm %d\n", getpid(), pid_next_comm);
 						if ((pid_exec = Fork())) { // just wait
-							fprintf(stderr, "[%d] created exec %d\n", getpid(), pid_exec);
 							Close(tube[1]);
 							while (nb_reaped < 2);
 							exit(0);
 						} else { // excute the commmand
-							Dup2(tube[1], 1);
+							dup2(tube[1], 1);
 							execute(cmd);
 						}
 					} else { // the rest of the sequence
 						Close(tube[1]);
-						Dup2(tube[0], 0);
+						dup2(tube[0], 0);
 					}
 				}
 			}
