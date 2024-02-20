@@ -81,7 +81,6 @@ void foreground(pid_t pid) {
 	tcsetpgrp(STDERR_FILENO, pid);
 	Kill(-pid, SIGCONT);
 	while (nb_reaped < 1);
-	nb_reaped = 0;
 	tcsetpgrp(STDIN_FILENO, Getpgrp());
 	tcsetpgrp(STDOUT_FILENO, Getpgrp());
 	tcsetpgrp(STDERR_FILENO, Getpgrp());
@@ -98,10 +97,9 @@ int main(int argc, char **argv) {
 	next_line_delay.tv_nsec = 10000000;
 
 	while (1) {
+		pid_t pid, pid_seq, pid_next_comm, pid_exec;
 		int i, file_in, file_out, tube[2], start;
 		char **cmd;
-		pid_t pid, pid_seq, pid_next_comm, pid_exec;
-		nb_reaped = 0;
 
 		/* Read command line */
 		nanosleep(&next_line_delay, NULL);
@@ -156,6 +154,7 @@ int main(int argc, char **argv) {
 			continue;
 		
 		/* Check for integrated command at top level */
+		nb_reaped = 0;
 		start = 0;
 		cmd = l->seq[start];
 		if (strcmp(cmd[0], "quit") == 0) {
@@ -181,13 +180,14 @@ int main(int argc, char **argv) {
 				else
 					Kill(-pid, SIGCONT);
 			}
-			
+
 			start++;
 		}
 		if (start == l->seq_len)
 			continue;
-nb_reaped = 0;
+	
 		/* Sequence of non-integrated command */
+		nb_reaped = 0;
 		if ((pid_seq = Fork())) { // shell
 			Setpgid(pid_seq, pid_seq);
 			if (l->foregrounded)

@@ -128,4 +128,5 @@ void kill_all_job() {
         if (job.command)
             free(job.command);
     }
+    free(job_history);
 }
