@@ -2,7 +2,7 @@
 #include "assert.h"
 
 static job_t *job_history = NULL;
-static int lastest_number = 0;
+static int highest_number = 0;
 
 void init_job_history() {
     job_history = (job_t *)malloc(sizeof(job_t) * (MAX_JOB+1));
@@ -13,9 +13,10 @@ void init_job_history() {
     for (int i = 0; i < MAX_JOB; i++) {
         job_t job;
         job.state = UNDEFINED;
+        job.command = NULL;
         job_history[i] = job;
     }
-    lastest_number = 0;
+    highest_number = 0;
 }
 
 bool is_tracking(int number) {
@@ -49,13 +50,13 @@ void print_job(int number) {
 }
 
 void print_jobs() {
-    for (int number = 1; number <= lastest_number; number++)
+    for (int number = 1; number <= highest_number; number++)
         if (is_tracking(number))
             print_job(number);
 }
 
 int find_job_number(pid_t pid) {
-    for (int number = 1; number <= lastest_number; number++) {
+    for (int number = 1; number <= highest_number; number++) {
         job_t job = job_history[number];
         if (is_tracking(number) && job.pid == pid)
             return number;
@@ -73,48 +74,31 @@ pid_t find_job_pid(int number) {
 void set_job_state(int number, short state) {
     job_history[number].state = state;
     print_job(number);
+    if (!is_tracking(highest_number))
+        highest_number--;
 }
 
-
-void new_job(pid_t pid, short state, char ***seq) {
-    if (lastest_number == MAX_JOB) {
+void new_job(pid_t pid, short state, char *seq_string) {
+    if (highest_number == MAX_JOB) {
         fprintf(stderr, "job: Out of memory for more jobs.\n");
         exit(1);
     }
-    lastest_number++;
+    int number = NOT_FOUND;
+    for (int i = 1; i <= highest_number; i++)
+        if (!is_tracking(i)) {
+            if (job_history[i].command)
+                free(job_history[i].command);
+            number = i;
+            break;
+        }
+    if (number == NOT_FOUND)
+        number = ++highest_number;
     job_t job;
     job.pid = pid;
     job.state = state;
-    job.command = (char *)malloc(MAX_COMMAND+1);
-    if (job.command == 0) {
-        fprintf(stderr, "job: Out of memory for more jobs.\n");
-        exit(1);
-    }
-    int increase, offset = 0;
-    for (int i = 0; seq[i] != NULL; i++) {
-        for (int j = 0; seq[i][j] != NULL; j++) {
-            increase = strlen(seq[i][j]) + 1;
-            if (offset + increase > MAX_COMMAND) {
-                job_history[lastest_number] = job;
-                print_job(lastest_number);
-                return;
-            }
-            sprintf(job.command + offset, "%s ", seq[i][j]);
-            offset += increase;
-        }
-        if (seq[i+1] != NULL) {
-            increase = 2;
-            if (offset + increase > MAX_COMMAND) {
-                job_history[lastest_number] = job;
-                print_job(lastest_number);
-                return;
-            }
-            sprintf(job.command + offset, "| ");
-            offset += increase;
-        }
-    }
-    job_history[lastest_number] = job;
-    print_job(lastest_number);
+    job.command = seq_string;
+    job_history[number] = job;
+    print_job(number);
 }
 
 int job_argument_parser(char *str) {
@@ -137,9 +121,11 @@ int job_argument_parser(char *str) {
 }
 
 void kill_all_job() {
-    for (int number = 1; number <= lastest_number; number++) {
+    for (int number = 1; number <= highest_number; number++) {
         job_t job = job_history[number];
         if (is_tracking(number))
             Kill(-job.pid, SIGKILL);
+        if (job.command)
+            free(job.command);
     }
 }

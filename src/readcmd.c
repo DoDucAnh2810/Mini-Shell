@@ -179,17 +179,19 @@ struct cmdline *readcmd(void)
 	seq_len = 0;
 
 	words = split_in_words(line);
-	free(line);
 
 	if (!s)
 		static_cmdline = s = xmalloc(sizeof(struct cmdline));
 	else
 		freecmd(s);
+
 	s->err = 0;
 	s->in = 0;
 	s->out = 0;
 	s->seq = 0;
 	s->foregrounded = true;
+	s->seq_string = line;
+
 	i = 0;
 	while ((w = words[i++]) != 0) {
 		switch (w[0]) {

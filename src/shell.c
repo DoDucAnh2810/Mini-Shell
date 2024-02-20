@@ -33,7 +33,7 @@ void handlerSIGCHLD() {
 				printf("\n"); fflush(stdout);
 			}
 			if (number == NOT_FOUND)
-				new_job(pid, STOPPED, l->seq);
+				new_job(pid, STOPPED, l->seq_string);
 			else
 				set_job_state(number, STOPPED);
 		}
@@ -110,7 +110,8 @@ int main(int argc, char **argv) {
 
 		/* Treat command line */
 		if (!l) {
-			printf("\nexit\n");
+			printf("exit\n");
+			kill_all_job();
 			exit(0);
 		}
 		if (l->err) {
@@ -180,19 +181,19 @@ int main(int argc, char **argv) {
 				else
 					Kill(-pid, SIGCONT);
 			}
-			nb_reaped = 0;
+			
 			start++;
 		}
 		if (start == l->seq_len)
 			continue;
-
+nb_reaped = 0;
 		/* Sequence of non-integrated command */
 		if ((pid_seq = Fork())) { // shell
 			Setpgid(pid_seq, pid_seq);
 			if (l->foregrounded)
 				foreground(pid_seq);
 			else
-				new_job(pid_seq, RUNNING, l->seq);
+				new_job(pid_seq, RUNNING, l->seq_string);
 		} else { // sequence execution
 			dup2(file_in, 0);
 			for (i = start; i < l->seq_len; i++) {

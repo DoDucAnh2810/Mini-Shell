@@ -31,7 +31,7 @@ void print_job(int number);
 
 void print_jobs();
 
-void new_job(pid_t pid, short state, char ***seq);
+void new_job(pid_t pid, short state, char *seq_string);
 
 int job_argument_parser(char *str);
 
