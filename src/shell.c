@@ -28,6 +28,7 @@ void handlerSIGCHLD() {
 			if (number != NOT_FOUND)
 				set_job_state(number, TERMINATED);
 		} else if (WIFSTOPPED(status)) {
+			fprintf(stderr, "[%d] received SIGCHLD because %d received %d\n", getpid(), pid, WSTOPSIG(status));
 			if (WSTOPSIG(status) == SIGTSTP) {
 				printf("\n"); fflush(stdout);
 			}
@@ -46,6 +47,7 @@ void handlerPrintNewLine() {
 }
 
 void execute(char **cmd) {
+	fprintf(stderr, "[%d] executed %s\n", getpid(), cmd[0]);
 	if (strcmp(cmd[0], "fg") == 0 || strcmp(cmd[0], "bg") == 0 ||
 		strcmp(cmd[0], "stop") == 0 || strcmp(cmd[0], "jobs") == 0 ||
 		strcmp(cmd[0], "quit") == 0) {
@@ -71,12 +73,19 @@ void execute(char **cmd) {
 }
 
 void foreground(pid_t pid) {
-	tcsetpgrp(STDERR_FILENO, pid);
-	while (nb_reaped < 1);
 	sigset_t set;
 	Sigemptyset(&set);
 	Sigaddset(&set, SIGTTOU);
 	Sigprocmask(SIG_BLOCK, &set, NULL);
+	fprintf(stderr, "[%d] set foreground for %d\n", getpid(), pid);
+	tcsetpgrp(STDIN_FILENO, pid);
+	tcsetpgrp(STDOUT_FILENO, pid);
+	tcsetpgrp(STDERR_FILENO, pid);
+	Kill(-pid, SIGCONT);
+	while (nb_reaped < 1);
+	nb_reaped = 0;
+	tcsetpgrp(STDIN_FILENO, Getpgrp());
+	tcsetpgrp(STDOUT_FILENO, Getpgrp());
 	tcsetpgrp(STDERR_FILENO, Getpgrp());
 	Sigprocmask(SIG_UNBLOCK, &set, NULL);
 }
@@ -174,10 +183,12 @@ int main(int argc, char **argv) {
 				Kill(-pid, SIGSTOP);
 			else {
 				set_job_state(number, RUNNING);
-				Kill(-pid, SIGCONT);
 				if (strcmp(cmd[0], "fg") == 0)
 					foreground(pid);
+				else
+					Kill(-pid, SIGCONT);
 			}
+			nb_reaped = 0;
 			start++;
 		}
 		if (start == seq_len)
@@ -193,6 +204,7 @@ int main(int argc, char **argv) {
 
 		/* Sequence of non-integrated command */
 		if ((pid_seq = Fork())) { // shell
+			fprintf(stderr, "[shell %d] created seq %d\n", getpid(), pid_seq);
 			Setpgid(pid_seq, pid_seq);
 			if (foregrounded)
 				foreground(pid_seq);
@@ -210,7 +222,9 @@ int main(int argc, char **argv) {
 					pipe(tube);
 					if ((pid_next_comm = Fork())) { // command at the head
 						Close(tube[0]);
+						fprintf(stderr, "[%d] created next comm %d\n", getpid(), pid_next_comm);
 						if ((pid_exec = Fork())) { // just wait
+							fprintf(stderr, "[%d] created exec %d\n", getpid(), pid_exec);
 							Close(tube[1]);
 							while (nb_reaped < 2);
 							exit(0);
