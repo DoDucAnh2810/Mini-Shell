@@ -75,8 +75,10 @@ void set_job_state(int number, short state) {
     job_history[number].state = state;
     print_job(number);
     if (!is_tracking(highest_number)) {
-        if (job_history[highest_number].command)
+        if (job_history[highest_number].command) {
             free(job_history[highest_number].command);
+            job_history[highest_number].command = NULL;
+        }
         highest_number--;
     }
 }
