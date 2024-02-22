@@ -14,8 +14,6 @@
 static int nb_reaped;
 static struct cmdline *l;
 static sigset_t set;
-static pid_t foreground_gid;
-static pid_t shell_gid;
 
 
 void printWelcome(bool newLine) {
@@ -30,7 +28,6 @@ void shell_give_control(pid_t gid) {
 	tcsetpgrp(STDIN_FILENO,  gid);
 	tcsetpgrp(STDOUT_FILENO, gid);
 	tcsetpgrp(STDERR_FILENO, gid);
-	foreground_gid = gid;
 }
 
 void shell_regain_control() {
@@ -38,7 +35,6 @@ void shell_regain_control() {
 	tcsetpgrp(STDOUT_FILENO, Getpgrp());
 	tcsetpgrp(STDERR_FILENO, Getpgrp());
 	Sigprocmask(SIG_UNBLOCK, &set, NULL);
-	foreground_gid = shell_gid;
 }
 
 void handlerSIGCHLD() {
@@ -142,7 +138,6 @@ int main(int argc, char **argv) {
 	struct timespec next_line_delay;
 	next_line_delay.tv_sec = 0;
 	next_line_delay.tv_nsec = 10000000;
-	foreground_gid = shell_gid = Getpgrp();
 	Sigemptyset(&set);
 	Sigaddset(&set, SIGTTOU);
 	Sigaddset(&set, SIGTTIN);

@@ -14,7 +14,7 @@
 #define FINISHED 4
 
 typedef struct {
-	int gid;
+	pid_t gid;
     short state;
 	char *command;
 } job_t;
