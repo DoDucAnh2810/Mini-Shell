@@ -1,5 +1,2 @@
 .vscode/*
-tests/*
-Makefile
-sdriver.pl
 shell

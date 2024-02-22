@@ -38,27 +38,21 @@ void shell_regain_control() {
 }
 
 void handlerSIGCHLD() {
-	int number, status;
+	int status;
 	pid_t pid;
     while ((pid = waitpid(-1, &status, WNOHANG | WUNTRACED)) > 0) {
-		number = find_job_number(pid);
 		if (WIFEXITED(status)) {
-			if (number != NOT_FOUND)
-				set_job_state(number, FINISHED);
+
 		} else if(WIFSIGNALED(status)) {
 			if (WTERMSIG(status) == SIGINT) {
 				printf("\n"); fflush(stdout);
 			}
-			if (number != NOT_FOUND)
-				set_job_state(number, TERMINATED);
+
 		} else if (WIFSTOPPED(status)) {
 			if (WSTOPSIG(status) == SIGTSTP) {
 				printf("\n"); fflush(stdout);
 			}
-			if (number == NOT_FOUND)
-				new_job(pid, STOPPED, l->seq_string);
-			else
-				set_job_state(number, STOPPED);
+
 		}
 		nb_reaped++;
 	}
@@ -143,7 +137,7 @@ int main(int argc, char **argv) {
 	Sigaddset(&set, SIGTTIN);
 
 	while (1) {
-		pid_t pid, seq_gid;
+		pid_t pid, seq_gid, gid;
 		int i, file_in, file_out, tube_old[2], tube_new[2], start;
 		char **cmd;
 
@@ -214,15 +208,15 @@ int main(int argc, char **argv) {
 				fprintf(stderr, "%s: Missing or invalid argument\n", cmd[0]);
 				continue;
 			}
-			pid = find_job_pid(number);
+			gid = find_job_pid(number);
 			if (strcmp(cmd[0], "stop") == 0)
-				Kill(-pid, SIGSTOP);
+				Kill(-gid, SIGSTOP);
 			else {
 				set_job_state(number, RUNNING);
 				if (strcmp(cmd[0], "fg") == 0)
-					foreground(pid);
+					foreground(gid);
 				else
-					Kill(-pid, SIGCONT);
+					Kill(-gid, SIGCONT);
 			}
 
 			start++;
