@@ -10,10 +10,12 @@
 #include "readcmd.h"
 #include "csapp.h"
 #include "job.h"
+#include "linked_list.h"
 
 static int nb_reaped;
 static struct cmdline *l;
 static sigset_t set;
+Node *gid_tracker;
 
 
 void printWelcome(bool newLine) {
@@ -38,21 +40,28 @@ void shell_regain_control() {
 }
 
 void handlerSIGCHLD() {
-	int status;
-	pid_t pid;
+	int number, status;
+	pid_t pid, gid;
     while ((pid = waitpid(-1, &status, WNOHANG | WUNTRACED)) > 0) {
+		gid = findGidByPid(gid_tracker, pid);
+		number = find_job_number(gid);
 		if (WIFEXITED(status)) {
-
+			if (number != NOT_FOUND)
+				decrement_nb_exist(number, FINISHED);
 		} else if(WIFSIGNALED(status)) {
 			if (WTERMSIG(status) == SIGINT) {
 				printf("\n"); fflush(stdout);
 			}
-
+			if (number != NOT_FOUND)
+				decrement_nb_exist(number, TERMINATED);
 		} else if (WIFSTOPPED(status)) {
 			if (WSTOPSIG(status) == SIGTSTP) {
 				printf("\n"); fflush(stdout);
 			}
-
+			if (number == NOT_FOUND)
+				new_job(pid, STOPPED, l->seq_len - nb_reaped, l->seq_string);
+			else
+				decrement_nb_running(number);
 		}
 		nb_reaped++;
 	}
@@ -87,24 +96,9 @@ void execute(char **cmd) {
 	}
 }
 
-void foreground(pid_t pid) {
-	sigset_t set;
-	Sigemptyset(&set);
-	Sigaddset(&set, SIGTTOU);
-	Sigprocmask(SIG_BLOCK, &set, NULL);
-	tcsetpgrp(STDIN_FILENO, pid);
-	tcsetpgrp(STDOUT_FILENO, pid);
-	tcsetpgrp(STDERR_FILENO, pid);
-	Kill(-pid, SIGCONT);
-	while (nb_reaped < 1);
-	tcsetpgrp(STDIN_FILENO, Getpgrp());
-	tcsetpgrp(STDOUT_FILENO, Getpgrp());
-	tcsetpgrp(STDERR_FILENO, Getpgrp());
-	Sigprocmask(SIG_UNBLOCK, &set, NULL);
-}
-
 void end_session() {
 	kill_all_job();
+	freeList(&gid_tracker);
 	while (nb_reaped < job_count());
 	destroy_job_history();
 	if (l) {
@@ -129,6 +123,7 @@ int main(int argc, char **argv) {
 	Signal(SIGINT, handlerPrintNewLine);
 	Signal(SIGTSTP, handlerPrintNewLine);
 	init_job_history();
+	gid_tracker = initializeList();
 	struct timespec next_line_delay;
 	next_line_delay.tv_sec = 0;
 	next_line_delay.tv_nsec = 10000000;
@@ -138,8 +133,9 @@ int main(int argc, char **argv) {
 
 	while (1) {
 		pid_t pid, seq_gid, gid;
-		int i, file_in, file_out, tube_old[2], tube_new[2], start;
+		int i, file_in, file_out, tube_old[2], tube_new[2];
 		char **cmd;
+		bool integrated;
 
 		/* Read command line */
 		nanosleep(&next_line_delay, NULL);
@@ -194,13 +190,14 @@ int main(int argc, char **argv) {
 		
 		/* Check for integrated command at top level */
 		nb_reaped = 0;
-		start = 0;
-		cmd = l->seq[start];
-		if (strcmp(cmd[0], "quit") == 0)
+		integrated = false;
+		cmd = l->seq[0];
+		if (strcmp(cmd[0], "quit") == 0) {
 			end_session();
-		else if (strcmp(cmd[0], "jobs") == 0) {
+			integrated = true;
+		} else if (strcmp(cmd[0], "jobs") == 0) {
 			print_jobs();
-			start++;
+			integrated = true;
 		} else if (strcmp(cmd[0], "fg") == 0 || strcmp(cmd[0], "bg") == 0 ||
 				   strcmp(cmd[0], "stop") == 0) {
 			int number = job_argument_parser(cmd[1]);
@@ -213,17 +210,24 @@ int main(int argc, char **argv) {
 				Kill(-gid, SIGSTOP);
 			else {
 				set_job_state(number, RUNNING);
-				if (strcmp(cmd[0], "fg") == 0)
-					foreground(gid);
-				else
+				if (strcmp(cmd[0], "bg") == 0)
 					Kill(-gid, SIGCONT);
+				else {
+					shell_give_control(gid);
+					Kill(-gid, SIGCONT);
+					wait_for_job(number);
+					shell_regain_control();
+				}	
 			}
-
-			start++;
+			integrated = true;
 		}
-		if (start == l->seq_len)
+		if (integrated) {
+			if (l->seq_len != 1)
+				fprintf(stderr, "warning: only unique integrated command supported\n");
 			continue;
+		}
 	
+		nb_reaped = 0;
 		/* Sequence of non-integrated command */
 		for (i = 0; i < l->seq_len; i++) {
 			if (i > 0) {
@@ -242,9 +246,10 @@ int main(int argc, char **argv) {
 					if (l->foregrounded)
 						shell_give_control(seq_gid);
 					else
-						new_job(seq_gid, RUNNING, l->seq_string);
+						new_job(seq_gid, RUNNING, l->seq_len, l->seq_string);
 				}
 				Setpgid(pid, seq_gid);
+				insertAtEnd(&gid_tracker, pid, seq_gid);
 			} else {
 				if (i == 0) {
 					if (l->in) {

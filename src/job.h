@@ -16,6 +16,8 @@
 typedef struct {
 	pid_t gid;
     short state;
+	int nb_running;
+	int nb_exist;
 	char *command;
 } job_t;
 
@@ -31,7 +33,7 @@ void print_job(int number);
 
 void print_jobs();
 
-void new_job(pid_t gid, short state, char *seq_string);
+void new_job(pid_t gid, short state, int nb_command, char *seq_string);
 
 int job_argument_parser(char *str);
 
@@ -40,5 +42,11 @@ void kill_all_job();
 int job_count();
 
 void destroy_job_history();
+
+void decrement_nb_exist(int number, short state);
+
+void decrement_nb_running(int number);
+
+void wait_for_job(int number);
 
 #endif

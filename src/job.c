@@ -73,6 +73,8 @@ pid_t find_job_pid(int number) {
 
 void set_job_state(int number, short state) {
     job_history[number].state = state;
+    if (state == RUNNING)
+        job_history[number].nb_running = job_history[number].nb_exist;
     print_job(number);
     if (!is_tracking(highest_number)) {
         if (job_history[highest_number].command) {
@@ -83,7 +85,7 @@ void set_job_state(int number, short state) {
     }
 }
 
-void new_job(pid_t gid, short state, char *seq_string) {
+void new_job(pid_t gid, short state, int nb_command, char *seq_string) {
     if (highest_number == MAX_JOB) {
         fprintf(stderr, "job: Out of memory for more jobs.\n");
         exit(1);
@@ -101,6 +103,11 @@ void new_job(pid_t gid, short state, char *seq_string) {
     job_t job;
     job.gid = gid;
     job.state = state;
+    if (state == RUNNING)
+        job.nb_running = nb_command;
+    else
+        job.nb_running = 0;
+    job.nb_exist = nb_command;
     job.command = seq_string;
     job_history[number] = job;
     print_job(number);
@@ -125,11 +132,20 @@ int job_argument_parser(char *str) {
     return number;
 }
 
+void wait_for_job(int number) {
+    while (job_history[number].nb_running > 0);
+}
+
+void wait_for_job_termination(int number) {
+    while (job_history[number].nb_exist > 0);
+}
+
 void kill_all_job() {
     for (int number = 1; number <= highest_number; number++) {
         job_t job = job_history[number];
         if (is_tracking(number))
             Kill(-job.gid, SIGKILL);
+        wait_for_job_termination(number);
     }
 }
 
@@ -145,3 +161,15 @@ void destroy_job_history() {
     }
     free(job_history);
 }
+
+void decrement_nb_exist(int number, short state) {
+    job_history[number].nb_running--;
+    if (--job_history[number].nb_exist == 0)
+        set_job_state(number, state);
+}
+
+void decrement_nb_running(int number) {
+    if (--job_history[number].nb_running == 0)
+        set_job_state(number, STOPPED);
+}
+
