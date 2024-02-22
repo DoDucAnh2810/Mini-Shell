@@ -31,7 +31,7 @@ void print_job(int number) {
     assert(state != UNDEFINED);
     if (state == FINISHED) return;
     printf("\033[1;35m[%d]\033[0m \033[1;33m%d\033[0m ", 
-            number, job_history[number].pid);
+            number, job_history[number].gid);
     switch (state) {
     case STOPPED:
         printf("\033[1;38;5;208mStopped   \033[0m ");
@@ -55,10 +55,10 @@ void print_jobs() {
             print_job(number);
 }
 
-int find_job_number(pid_t pid) {
+int find_job_number(pid_t gid) {
     for (int number = 1; number <= highest_number; number++) {
         job_t job = job_history[number];
-        if (is_tracking(number) && job.pid == pid)
+        if (is_tracking(number) && job.gid == gid)
             return number;
     }
     return NOT_FOUND;
@@ -66,7 +66,7 @@ int find_job_number(pid_t pid) {
 
 pid_t find_job_pid(int number) {
     if (is_tracking(number))
-        return job_history[number].pid;
+        return job_history[number].gid;
     else
         return NOT_FOUND;
 }
@@ -83,7 +83,7 @@ void set_job_state(int number, short state) {
     }
 }
 
-void new_job(pid_t pid, short state, char *seq_string) {
+void new_job(pid_t gid, short state, char *seq_string) {
     if (highest_number == MAX_JOB) {
         fprintf(stderr, "job: Out of memory for more jobs.\n");
         exit(1);
@@ -99,7 +99,7 @@ void new_job(pid_t pid, short state, char *seq_string) {
     if (number == NOT_FOUND)
         number = ++highest_number;
     job_t job;
-    job.pid = pid;
+    job.gid = gid;
     job.state = state;
     job.command = seq_string;
     job_history[number] = job;
@@ -111,16 +111,16 @@ int job_argument_parser(char *str) {
         return NOT_FOUND;
     int number;
     char *endptr;
-    pid_t pid;
+    pid_t gid;
     if (str[0] == '%') {
         number = strtol(str + 1, &endptr, 0);
         if (!is_tracking(number) || *endptr != '\0')
             return NOT_FOUND;
     } else {
-        pid = strtol(str, &endptr, 0);
+        gid = strtol(str, &endptr, 0);
         if (*endptr != '\0')
             return NOT_FOUND;
-        number = find_job_number(pid);
+        number = find_job_number(gid);
     }
     return number;
 }
@@ -129,7 +129,7 @@ void kill_all_job() {
     for (int number = 1; number <= highest_number; number++) {
         job_t job = job_history[number];
         if (is_tracking(number))
-            Kill(-job.pid, SIGKILL);
+            Kill(-job.gid, SIGKILL);
     }
 }
 

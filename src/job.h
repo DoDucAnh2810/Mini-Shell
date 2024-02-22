@@ -14,14 +14,14 @@
 #define FINISHED 4
 
 typedef struct {
-	int pid;
+	int gid;
     short state;
 	char *command;
 } job_t;
 
 void init_job_history();
 
-int find_job_number(pid_t pid);
+int find_job_number(pid_t gid);
 
 pid_t find_job_pid(int number);
 
@@ -31,7 +31,7 @@ void print_job(int number);
 
 void print_jobs();
 
-void new_job(pid_t pid, short state, char *seq_string);
+void new_job(pid_t gid, short state, char *seq_string);
 
 int job_argument_parser(char *str);
 

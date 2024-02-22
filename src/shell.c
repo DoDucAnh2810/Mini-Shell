@@ -13,6 +13,33 @@
 
 static int nb_reaped;
 static struct cmdline *l;
+static sigset_t set;
+static pid_t foreground_gid;
+static pid_t shell_gid;
+
+
+void printWelcome(bool newLine) {
+	if (newLine)
+		printf("\n");
+	printf("\033[1;32mshell>\033[0m ");
+	fflush(stdout);
+}
+
+void shell_give_control(pid_t gid) {
+	Sigprocmask(SIG_BLOCK, &set, NULL);
+	tcsetpgrp(STDIN_FILENO,  gid);
+	tcsetpgrp(STDOUT_FILENO, gid);
+	tcsetpgrp(STDERR_FILENO, gid);
+	foreground_gid = gid;
+}
+
+void shell_regain_control() {
+	tcsetpgrp(STDIN_FILENO, Getpgrp());
+	tcsetpgrp(STDOUT_FILENO, Getpgrp());
+	tcsetpgrp(STDERR_FILENO, Getpgrp());
+	Sigprocmask(SIG_UNBLOCK, &set, NULL);
+	foreground_gid = shell_gid;
+}
 
 void handlerSIGCHLD() {
 	int number, status;
@@ -42,8 +69,7 @@ void handlerSIGCHLD() {
 }
 
 void handlerPrintNewLine() {
-	printf("\n\033[1;32mshell>\033[0m ");
-	fflush(stdout);
+	printWelcome(true);
 }
 
 void execute(char **cmd) {
@@ -116,15 +142,19 @@ int main(int argc, char **argv) {
 	struct timespec next_line_delay;
 	next_line_delay.tv_sec = 0;
 	next_line_delay.tv_nsec = 10000000;
+	foreground_gid = shell_gid = Getpgrp();
+	Sigemptyset(&set);
+	Sigaddset(&set, SIGTTOU);
+	Sigaddset(&set, SIGTTIN);
 
 	while (1) {
-		pid_t pid, pid_seq, pid_next_comm, pid_exec;
-		int i, file_in, file_out, tube[2], start;
+		pid_t pid, seq_gid;
+		int i, file_in, file_out, tube_old[2], tube_new[2], start;
 		char **cmd;
 
 		/* Read command line */
 		nanosleep(&next_line_delay, NULL);
-		printf("\033[1;32mshell>\033[0m ");
+		printWelcome(false);
 		l = readcmd();
 
 		/* Treat command line */
@@ -206,39 +236,62 @@ int main(int argc, char **argv) {
 			continue;
 	
 		/* Sequence of non-integrated command */
-		nb_reaped = 0;
-		if ((pid_seq = Fork())) { // shell
-			Setpgid(pid_seq, pid_seq);
-			if (l->foregrounded)
-				foreground(pid_seq);
-			else
-				new_job(pid_seq, RUNNING, l->seq_string);
-		} else { // sequence execution
-			dup2(file_in, 0);
-			for (i = start; i < l->seq_len; i++) {
-				cmd = l->seq[i];
-				if (i == l->seq_len - 1) {
-					if (l->out)
-						dup2(file_out, 1);
-					execute(cmd);
-				} else {
-					pipe(tube);
-					if ((pid_next_comm = Fork())) { // command at the head
-						Close(tube[0]);
-						if ((pid_exec = Fork())) { // just wait
-							Close(tube[1]);
-							while (nb_reaped < 2);
-							exit(0);
-						} else { // excute the commmand
-							dup2(tube[1], 1);
-							execute(cmd);
-						}
-					} else { // the rest of the sequence
-						Close(tube[1]);
-						dup2(tube[0], 0);
-					}
+		for (i = 0; i < l->seq_len; i++) {
+			if (i > 0) {
+				if (i > 1) {
+					Close(tube_old[0]);
+					Close(tube_old[1]);
 				}
+				tube_old[0] = tube_new[0];
+				tube_old[1] = tube_new[1];
 			}
+			pipe(tube_new);
+
+			if ((pid = Fork())) {
+				if (i == 0) {
+					seq_gid = pid;
+					if (l->foregrounded)
+						shell_give_control(seq_gid);
+					else
+						new_job(seq_gid, RUNNING, l->seq_string);
+				}
+				Setpgid(pid, seq_gid);
+			} else {
+				if (i == 0) {
+					if (l->in) {
+						Dup2(file_in, 0);
+						Close(file_in);
+					}
+				} else // i > 0
+					Dup2(tube_old[0], 0);
+				if (i == l->seq_len - 1) {
+					if (l->out) {
+						Dup2(file_out, 1);
+						Close(file_out);
+					}
+				} else
+					Dup2(tube_new[1], 1);
+				if (i > 0){
+					Close(tube_old[0]);
+					Close(tube_old[1]);
+				}
+				Close(tube_new[0]);
+				Close(tube_new[1]);
+				cmd = l->seq[i];
+				execute(cmd);
+			}
+		}
+
+		if (l->seq_len > 1) {
+			Close(tube_old[0]);
+			Close(tube_old[1]);
+		}
+		Close(tube_new[0]);
+		Close(tube_new[1]);
+
+		if (l->foregrounded) {
+			while (nb_reaped < l->seq_len);
+			shell_regain_control();
 		}
 	}
 }
