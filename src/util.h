@@ -1,7 +1,6 @@
 #ifndef UTIL_H
 #define UTIL_H
 
-#include <time.h>
 #include <stdbool.h>
 #include "readcmd.h"
 #include "csapp.h"

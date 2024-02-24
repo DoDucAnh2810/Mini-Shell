@@ -2,16 +2,11 @@
  * Copyright (C) 2002, Simon Nieuviarts
  */
 #include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <stdbool.h>
-#include <time.h>
-#include <assert.h>
+#include "gid_tracker.h"
 #include "readcmd.h"
 #include "csapp.h"
-#include "job.h"
-#include "gid_tracker.h"
 #include "util.h"
+#include "job.h"
 
 static int nb_reaped;
 static struct cmdline *l;

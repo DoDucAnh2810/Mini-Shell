@@ -1,5 +1,5 @@
+#include <stdbool.h>
 #include "job.h"
-#include "assert.h"
 
 typedef struct {
 	pid_t gid;
@@ -36,7 +36,6 @@ bool is_tracking(int number) {
 
 void print_job(int number) {
     short state = job_history[number].state;
-    assert(state != UNDEFINED);
     if (state == FINISHED) return;
     printf("\033[1;35m[%d]\033[0m \033[1;33m%d\033[0m ", 
             number, job_history[number].gid);

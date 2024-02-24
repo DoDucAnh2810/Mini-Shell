@@ -1,6 +1,4 @@
 #include "gid_tracker.h"
-#include <stdio.h>
-#include <stdlib.h>
 
 typedef struct Node {
     pid_t pid;
@@ -67,7 +65,7 @@ pid_t find_gid(pid_t pid) {
             return current->gid;
         current = current->next;
     }
-    // Return a value to indicate that the pid was not found (you can choose an appropriate value)
+    // Return a value to indicate that the pid was not found
     return (pid_t)-1;
 }
 

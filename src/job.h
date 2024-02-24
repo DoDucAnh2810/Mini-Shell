@@ -1,7 +1,6 @@
 #ifndef __JOB_H__
 #define __JOB_H__
 
-#include <stdbool.h>
 #include "csapp.h"
 
 #define MAX_JOB 16383
