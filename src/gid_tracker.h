@@ -1,5 +1,5 @@
-#ifndef LINKED_LIST_H
-#define LINKED_LIST_H
+#ifndef GID_TRACKER_H
+#define GID_TRACKER_H
 
 #include "csapp.h"
 
