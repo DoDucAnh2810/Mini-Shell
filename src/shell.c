@@ -15,7 +15,6 @@
 static int nb_reaped;
 static struct cmdline *l;
 static sigset_t shell_background_ignore_set;
-Node *gid_tracker;
 
 
 void printWelcome(bool newLine) {
@@ -42,19 +41,19 @@ void handlerSIGCHLD() {
 	int number, status;
 	pid_t pid, gid;
     while ((pid = waitpid(-1, &status, WNOHANG | WUNTRACED)) > 0) {
-		gid = findGidByPid(gid_tracker, pid);
+		gid = findGidByPid(pid);
 		number = find_job_number(gid);
 		if (WIFEXITED(status)) {
 			if (number != NOT_FOUND)
 				decrement_nb_exist(number, FINISHED);
 			else
-				deleteNode(&gid_tracker, pid);
+				deleteTracker(pid);
 		} else if(WIFSIGNALED(status)) {
 			if (WTERMSIG(status) == SIGINT)  { printf("\n"); fflush(stdout);}
 			if (number != NOT_FOUND)
 				decrement_nb_exist(number, TERMINATED);
 			else
-				deleteNode(&gid_tracker, pid);
+				deleteTracker(pid);
 		} else if (WIFSTOPPED(status)) {
 			if (WSTOPSIG(status) == SIGTSTP) { printf("\n"); fflush(stdout);}
 			if (number == NOT_FOUND)
@@ -97,7 +96,7 @@ void execute(char **cmd) {
 
 void end_session() {
 	kill_all_job();
-	freeList(&gid_tracker);
+	freeAllTracker();
 	destroy_job_history();
 	if (l) {
 		if (l->in) free(l->in);
@@ -121,7 +120,6 @@ int main(int argc, char **argv) {
 	Signal(SIGINT, handlerPrintNewLine);
 	Signal(SIGTSTP, handlerPrintNewLine);
 	init_job_history();
-	gid_tracker = initializeList();
 	struct timespec next_line_delay;
 	next_line_delay.tv_sec = 0;
 	next_line_delay.tv_nsec = 10000000;
@@ -245,7 +243,7 @@ int main(int argc, char **argv) {
 						new_job(seq_gid, RUNNING, l->seq_len, l->seq_string);
 				}
 				Setpgid(pid, seq_gid);
-				insertAtEnd(&gid_tracker, pid, seq_gid);
+				newTracker(pid, seq_gid);
 			} else {
 				if (i == 0) {
 					if (l->in) {
