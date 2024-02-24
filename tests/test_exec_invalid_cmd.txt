@@ -1,0 +1,4 @@
+#
+# test_red_invalid_cmd.txt Execuion de la commande non existante
+#
+not_a_commmand

@@ -1,0 +1,4 @@
+#
+# test08.txt - Pipe en redirection
+#
+ls -l | wc -l

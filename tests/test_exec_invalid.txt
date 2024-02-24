@@ -1,0 +1,4 @@
+#
+# test_red_invalid.txt Execuion de la commande avec l'argument invalide = error
+#
+ls non_existant

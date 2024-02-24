@@ -1,0 +1,4 @@
+#
+# test_pipe_multiple.txt - Plusieurs pipes
+#
+ls -l | grep rwx | wc -l

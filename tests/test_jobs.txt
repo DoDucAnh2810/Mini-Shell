@@ -1,0 +1,5 @@
+#
+# test_jobs.txt - jobs ccommand
+#
+sleep 20 | sleep 20 &
+jobs

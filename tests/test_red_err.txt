@@ -1,0 +1,6 @@
+#
+# test_red_err.txt - Essai de redirection sans droit d'access
+#
+touch no_rights.txt
+chmod 444 no_rights.txt
+ls -l > no_rights.txt

@@ -1,0 +1,4 @@
+#
+# test_pipe_simple.txt - Pipe simple
+#
+sleep 5 | ps

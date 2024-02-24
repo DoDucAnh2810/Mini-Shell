@@ -1,0 +1,7 @@
+#
+# test_exec_simple.txt - Tester plusieurs commandes simples valides
+#
+echo "Hello!"
+ls -l
+touch test.txt
+rm test.txt

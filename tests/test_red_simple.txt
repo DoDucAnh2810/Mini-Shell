@@ -1,0 +1,4 @@
+#
+# test_red_simple.txt - Test redirection simple
+#
+ls -l > out.txt
