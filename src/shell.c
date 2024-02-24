@@ -106,9 +106,11 @@ int main(int argc, char **argv) {
 					Kill(-gid, SIGSTOP);
 				else {
 					set_job_state(number, RUNNING);
-					Kill(-gid, SIGCONT);
-					if (strings_equal(cmd[0], "fg")) {
+					if (strings_equal(cmd[0], "bg"))
+						Kill(-gid, SIGCONT);
+					else {
 						shell_give_control(gid);
+						Kill(-gid, SIGCONT);
 						wait_for_job(number);
 						shell_regain_control();
 					}	
