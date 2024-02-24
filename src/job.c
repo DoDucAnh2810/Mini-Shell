@@ -72,7 +72,7 @@ int find_job_number(pid_t gid) {
     return NOT_FOUND;
 }
 
-pid_t find_job_pid(int number) {
+pid_t find_job_gid(int number) {
     if (is_tracking(number))
         return job_history[number].gid;
     else
@@ -174,7 +174,7 @@ void decrement_nb_exist(int number, short state) {
     job_history[number].nb_running--;
     if (--job_history[number].nb_exist == 0) {
         set_job_state(number, state);
-        delete_nodes_gid(find_job_pid(number));
+        delete_nodes_gid(find_job_gid(number));
     }
 }
 

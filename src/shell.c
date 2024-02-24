@@ -101,7 +101,7 @@ int main(int argc, char **argv) {
 					fprintf(stderr, "%s: Missing or invalid argument\n", cmd[0]);
 					continue;
 				}
-				gid = find_job_pid(number);
+				gid = find_job_gid(number);
 				if (strings_equal(cmd[0], "stop"))
 					Kill(-gid, SIGSTOP);
 				else {
@@ -119,18 +119,18 @@ int main(int argc, char **argv) {
 			continue;
 		}
 	
-		/* Sequence of non-integrated command */
+		/* Sequence of non-integrated commands */
 		for (i = 0; i < l->seq_len; i++) {
+			// update tubes
 			if (i > 0) {
-				if (i > 1) 
-					close_pipe(tube_old);
+				if (i > 1) close_pipe(tube_old);
 				tube_old[0] = tube_new[0];
 				tube_old[1] = tube_new[1];
 			}
 			pipe(tube_new);
 
-			if ((pid = Fork())) {
-				if (i == 0) {
+			if ((pid = Fork())) { // shell
+				if (i == 0) { // first iteration
 					gid = pid;
 					if (l->foregrounded)
 						shell_give_control(gid);
@@ -139,14 +139,16 @@ int main(int argc, char **argv) {
 				}
 				Setpgid(pid, gid);
 				new_tracker(pid, gid);
-			} else {
+			} else { // children
+				// redirecting input
 				if (i == 0) {
 					if (l->in) {
 						Dup2(file_in, 0);
 						Close(file_in);
 					}
-				} else // i > 0
+				} else
 					Dup2(tube_old[0], 0);
+				// redirecting output
 				if (i == l->seq_len - 1) {
 					if (l->out) {
 						Dup2(file_out, 1);
@@ -154,19 +156,18 @@ int main(int argc, char **argv) {
 					}
 				} else
 					Dup2(tube_new[1], 1);
-				if (i > 0){
-					close_pipe(tube_old);
-				}
+				// Close all tubes
+				if (i > 0) close_pipe(tube_old);
 				close_pipe(tube_new);
+				// Execution
 				cmd = l->seq[i];
 				execute(cmd);
 			}
 		}
-
-		if (l->seq_len > 1)
-			close_pipe(tube_old);
+		// Close all tubes
+		if (l->seq_len > 1) close_pipe(tube_old);
 		close_pipe(tube_new);
-		
+		// Wait if necessary
 		if (l->foregrounded) {
 			while (nb_reaped < l->seq_len);
 			shell_regain_control();
