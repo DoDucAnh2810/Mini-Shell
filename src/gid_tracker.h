@@ -3,11 +3,11 @@
 
 #include "csapp.h"
 
-void newTracker(pid_t pid, pid_t gid);
-void deleteTracker(pid_t pid);
-void freeAllTracker();
-pid_t findGidByPid(pid_t pid);
-void deleteNodesWithGid(gid_t gid);
+void new_tracker(pid_t pid, pid_t gid);
+void delete_tracker(pid_t pid);
+void free_all_tracker();
+pid_t find_gid(pid_t pid);
+void delete_nodes_gid(gid_t gid);
 
 #endif
 

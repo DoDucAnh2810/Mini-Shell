@@ -16,23 +16,23 @@
 static int nb_reaped;
 static struct cmdline *l;
 
-void handlerSIGCHLD() {
+void handler_SIGCHLD() {
 	int number, status;
 	pid_t pid, gid;
     while ((pid = waitpid(-1, &status, WNOHANG | WUNTRACED)) > 0) {
-		gid = findGidByPid(pid);
+		gid = find_gid(pid);
 		number = find_job_number(gid);
 		if (WIFEXITED(status)) {
 			if (number != NOT_FOUND)
 				decrement_nb_exist(number, FINISHED);
 			else
-				deleteTracker(pid);
+				delete_tracker(pid);
 		} else if(WIFSIGNALED(status)) {
 			if (WTERMSIG(status) == SIGINT)  { printf("\n"); fflush(stdout);}
 			if (number != NOT_FOUND)
 				decrement_nb_exist(number, TERMINATED);
 			else
-				deleteTracker(pid);
+				delete_tracker(pid);
 		} else if (WIFSTOPPED(status)) {
 			if (WSTOPSIG(status) == SIGTSTP) { printf("\n"); fflush(stdout);}
 			if (number == NOT_FOUND)
@@ -44,8 +44,8 @@ void handlerSIGCHLD() {
 	}
 }
 
-void handlerPrintNewLine() {
-	printWelcome(NEW_LINE);
+void handler_new_line() {
+	print_welcome(NEW_LINE);
 }
 
 int main(int argc, char **argv) {
@@ -53,16 +53,16 @@ int main(int argc, char **argv) {
 	pid_t pid, gid;
 	char **cmd;
 
-	Signal(SIGCHLD, handlerSIGCHLD);
-	Signal(SIGINT, handlerPrintNewLine);
-	Signal(SIGTSTP, handlerPrintNewLine);
+	Signal(SIGCHLD, handler_SIGCHLD);
+	Signal(SIGINT, handler_new_line);
+	Signal(SIGTSTP, handler_new_line);
 	init_job_history();
 	init_util(Getpgrp());
 
 	while (1) {
 		/* Read command line */
 		delay_new_line();
-		printWelcome(SAME_LINE);
+		print_welcome(SAME_LINE);
 		l = readcmd();
 		nb_reaped = 0;
 
@@ -145,7 +145,7 @@ int main(int argc, char **argv) {
 						new_job(gid, RUNNING, l->seq_len, l->seq_string);
 				}
 				Setpgid(pid, gid);
-				newTracker(pid, gid);
+				new_tracker(pid, gid);
 			} else {
 				if (i == 0) {
 					if (l->in) {

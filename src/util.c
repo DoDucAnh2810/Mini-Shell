@@ -29,7 +29,7 @@ void delay_new_line() {
     nanosleep(&next_line_delay, NULL);
 }
 
-void printWelcome(bool newLine) {
+void print_welcome(bool newLine) {
 	if (newLine) printf("\n");
 	printf("\033[1;32mshell>\033[0m ");
 	fflush(stdout);
@@ -81,7 +81,7 @@ void execute(char **cmd) {
 
 void end_session(struct cmdline **l) {
 	kill_all_job();
-	freeAllTracker();
+	free_all_tracker();
 	destroy_job_history();
 	if (*l) {
 		if ((*l)->in) free((*l)->in);

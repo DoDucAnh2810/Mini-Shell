@@ -20,7 +20,7 @@ Node* createNode(pid_t pid, gid_t gid) {
     return newNode;
 }
 
-void newTracker(pid_t pid, pid_t gid) {
+void new_tracker(pid_t pid, pid_t gid) {
     Node* newNode = createNode(pid, gid);
     if (newNode != NULL) {
         newNode->next = head;
@@ -28,7 +28,7 @@ void newTracker(pid_t pid, pid_t gid) {
     }
 }
 
-void deleteTracker(pid_t pid) {
+void delete_tracker(pid_t pid) {
     if (head == NULL) {
         return;
     }
@@ -52,7 +52,7 @@ void deleteTracker(pid_t pid) {
     }
 }
 
-void freeAllTracker() {
+void free_all_tracker() {
     while (head != NULL) {
         Node* temp = head;
         head = head->next;
@@ -60,7 +60,7 @@ void freeAllTracker() {
     }
 }
 
-pid_t findGidByPid(pid_t pid) {
+pid_t find_gid(pid_t pid) {
     Node* current = head;
     while (current != NULL) {
         if (current->pid == pid)
@@ -71,7 +71,7 @@ pid_t findGidByPid(pid_t pid) {
     return (pid_t)-1;
 }
 
-void deleteNodesWithGid(gid_t gid) {
+void delete_nodes_gid(gid_t gid) {
     if (head == NULL)
         return; // Empty list, nothing to delete
 
