@@ -49,6 +49,10 @@ void handlerPrintNewLine() {
 }
 
 int main(int argc, char **argv) {
+	int i, file_in, file_out, tube_old[2], tube_new[2];
+	pid_t pid, gid;
+	char **cmd;
+
 	Signal(SIGCHLD, handlerSIGCHLD);
 	Signal(SIGINT, handlerPrintNewLine);
 	Signal(SIGTSTP, handlerPrintNewLine);
@@ -56,11 +60,6 @@ int main(int argc, char **argv) {
 	init_util(Getpgrp());
 
 	while (1) {
-		pid_t pid, seq_gid, gid;
-		int i, file_in, file_out, tube_old[2], tube_new[2];
-		char **cmd;
-		bool integrated;
-
 		/* Read command line */
 		delay_new_line();
 		printWelcome(SAME_LINE);
@@ -94,36 +93,32 @@ int main(int argc, char **argv) {
 			continue;
 
 		/* Check for integrated command at top level */
-		integrated = false;
 		cmd = l->seq[0];
-		if (strings_equal(cmd[0], "quit")) {
-			end_session(&l);
-			integrated = true;
-		} else if (strings_equal(cmd[0], "jobs")) {
-			print_jobs();
-			integrated = true;
-		} else if (strings_equal(cmd[0], "fg") || strings_equal(cmd[0], "bg")||
-				   strings_equal(cmd[0], "stop")) {
-			int number = job_argument_parser(cmd[1]);
-			if (number == NOT_FOUND) {
-				fprintf(stderr, "%s: Missing or invalid argument\n", cmd[0]);
-				continue;
+		if (integrated_command(cmd[0])) {
+			if (strings_equal(cmd[0], "quit"))
+				end_session(&l);
+			else if (strings_equal(cmd[0], "jobs"))
+				print_jobs();
+			else if (strings_equal(cmd[0], "fg") || strings_equal(cmd[0], "bg")||
+					strings_equal(cmd[0], "stop")) {
+				int number = job_argument_parser(cmd[1]);
+				if (number == NOT_FOUND) {
+					fprintf(stderr, "%s: Missing or invalid argument\n", cmd[0]);
+					continue;
+				}
+				gid = find_job_pid(number);
+				if (strings_equal(cmd[0], "stop"))
+					Kill(-gid, SIGSTOP);
+				else {
+					set_job_state(number, RUNNING);
+					Kill(-gid, SIGCONT);
+					if (strings_equal(cmd[0], "fg")) {
+						shell_give_control(gid);
+						wait_for_job(number);
+						shell_regain_control();
+					}	
+				}
 			}
-			gid = find_job_pid(number);
-			if (strings_equal(cmd[0], "stop"))
-				Kill(-gid, SIGSTOP);
-			else {
-				set_job_state(number, RUNNING);
-				Kill(-gid, SIGCONT);
-				if (strings_equal(cmd[0], "fg")) {
-					shell_give_control(gid);
-					wait_for_job(number);
-					shell_regain_control();
-				}	
-			}
-			integrated = true;
-		}
-		if (integrated) {
 			if (l->seq_len != 1)
 				fprintf(stderr, "warning: only unique integrated command supported\n");
 			continue;
@@ -143,14 +138,14 @@ int main(int argc, char **argv) {
 
 			if ((pid = Fork())) {
 				if (i == 0) {
-					seq_gid = pid;
+					gid = pid;
 					if (l->foregrounded)
-						shell_give_control(seq_gid);
+						shell_give_control(gid);
 					else
-						new_job(seq_gid, RUNNING, l->seq_len, l->seq_string);
+						new_job(gid, RUNNING, l->seq_len, l->seq_string);
 				}
-				Setpgid(pid, seq_gid);
-				newTracker(pid, seq_gid);
+				Setpgid(pid, gid);
+				newTracker(pid, gid);
 			} else {
 				if (i == 0) {
 					if (l->in) {
@@ -183,7 +178,6 @@ int main(int argc, char **argv) {
 		}
 		Close(tube_new[0]);
 		Close(tube_new[1]);
-
 		if (l->foregrounded) {
 			while (nb_reaped < l->seq_len);
 			shell_regain_control();

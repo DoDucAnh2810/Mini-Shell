@@ -11,6 +11,11 @@ bool strings_equal(char *s1, char *s2) {
 	return strcmp(s1, s2) == 0;
 }
 
+bool integrated_command(char *str) {
+	return strings_equal(str, "fg") || strings_equal(str, "bg") || strings_equal(str, "stop") || 
+			strings_equal(str, "jobs") || strings_equal(str, "quit");
+}
+
 void init_util(pid_t gid) {
     shell_gid = gid;
     next_line_delay.tv_sec = 0;
@@ -62,9 +67,7 @@ void error_hander(char *pathname, bool isFile) {
 }
 
 void execute(char **cmd) {
-	if (strings_equal(cmd[0], "fg") || strings_equal(cmd[0], "bg") ||
-		strings_equal(cmd[0], "stop") || strings_equal(cmd[0], "jobs") ||
-		strings_equal(cmd[0], "quit")) {
+	if (integrated_command(cmd[0])) {
 		fprintf(stderr, "%s: Integrated command not defined in pipe\n", cmd[0]);
 		exit(1);
 	} else {

@@ -12,6 +12,7 @@
 #define COMMAND 0
 
 bool strings_equal(char *s1, char *s2);
+bool integrated_command(char *str);
 void init_util(pid_t gid);
 void delay_new_line();
 void printWelcome(bool newLine);
