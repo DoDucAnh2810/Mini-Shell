@@ -6,7 +6,7 @@ typedef struct Node {
     struct Node* next;
 } Node;
 
-Node *head = NULL;
+static Node *head = NULL;
 
 Node* createNode(pid_t pid, gid_t gid) {
     Node* newNode = (Node*)malloc(sizeof(Node));
