@@ -130,7 +130,7 @@ int main(int argc, char **argv) {
 			pipe(tube_new);
 
 			if ((pid = Fork())) { // shell
-				if (i == 0) { // first iteration
+				if (i == 0) {
 					gid = pid;
 					if (l->foregrounded)
 						shell_give_control(gid);
