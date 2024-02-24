@@ -65,6 +65,7 @@ int main(int argc, char **argv) {
 		delay_new_line();
 		printWelcome(SAME_LINE);
 		l = readcmd();
+		nb_reaped = 0;
 
 		/* Treat command line */
 		if (!l) {
@@ -77,66 +78,44 @@ int main(int argc, char **argv) {
 		}
 		if (l->in) {
 			file_in = Open(l->in, O_RDONLY, 777);
-			if (file_in == -1) { 
-				switch (errno) {
-				case EACCES:
-					fprintf(stderr, "%s: Permission denied\n", l->in);
-					break;
-				case ENOENT:
-					fprintf(stderr, "%s: No such file in directory\n", l->in);
-					break;
-				default:
-					perror(l->in);
-					break;
-				}
+			if (file_in == -1) {
+				error_hander(l->in, FILE);
 				continue;
 			}
 		}
 		if (l->out) {
 			file_out = Open(l->out, O_CREAT | O_WRONLY, 777);
-			if (file_out == -1) { 
-				switch (errno) {
-				case EACCES:
-					fprintf(stderr, "%s: Permission denied\n", l->out);
-					break;
-				case ENOENT:
-					fprintf(stderr, "%s: No such file in directory\n", l->out);
-					break;
-				default:
-					perror(l->out);
-					break;
-				}
+			if (file_out == -1) {
+				error_hander(l->out, FILE);
 				continue;
 			}
 		}
 		if (l->seq_len == 0)
 			continue;
-		
-		nb_reaped = 0;
 
 		/* Check for integrated command at top level */
 		integrated = false;
 		cmd = l->seq[0];
-		if (strcmp(cmd[0], "quit") == 0) {
+		if (strings_equal(cmd[0], "quit")) {
 			end_session(&l);
 			integrated = true;
-		} else if (strcmp(cmd[0], "jobs") == 0) {
+		} else if (strings_equal(cmd[0], "jobs")) {
 			print_jobs();
 			integrated = true;
-		} else if (strcmp(cmd[0], "fg") == 0 || strcmp(cmd[0], "bg") == 0 ||
-				   strcmp(cmd[0], "stop") == 0) {
+		} else if (strings_equal(cmd[0], "fg") || strings_equal(cmd[0], "bg")||
+				   strings_equal(cmd[0], "stop")) {
 			int number = job_argument_parser(cmd[1]);
 			if (number == NOT_FOUND) {
 				fprintf(stderr, "%s: Missing or invalid argument\n", cmd[0]);
 				continue;
 			}
 			gid = find_job_pid(number);
-			if (strcmp(cmd[0], "stop") == 0)
+			if (strings_equal(cmd[0], "stop"))
 				Kill(-gid, SIGSTOP);
 			else {
 				set_job_state(number, RUNNING);
 				Kill(-gid, SIGCONT);
-				if (strcmp(cmd[0], "fg") == 0) {
+				if (strings_equal(cmd[0], "fg")) {
 					shell_give_control(gid);
 					wait_for_job(number);
 					shell_regain_control();

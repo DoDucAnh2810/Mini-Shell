@@ -7,6 +7,10 @@ static pid_t shell_gid;
 static sigset_t shell_background_ignore_set;
 static struct timespec next_line_delay;
 
+bool strings_equal(char *s1, char *s2) {
+	return strcmp(s1, s2) == 0;
+}
+
 void init_util(pid_t gid) {
     shell_gid = gid;
     next_line_delay.tv_sec = 0;
@@ -40,25 +44,32 @@ void shell_regain_control() {
 	Sigprocmask(SIG_UNBLOCK, &shell_background_ignore_set, NULL);
 }
 
+void error_hander(char *pathname, bool isFile) {
+	switch (errno) {
+	case EACCES:
+		fprintf(stderr, "%s: Permission denied\n", pathname);
+		break;
+	case ENOENT:
+		if (isFile)
+			fprintf(stderr, "%s: No such file in directory\n", pathname);
+		else
+			fprintf(stderr, "%s: Command not found\n", pathname);
+		break;
+	default:
+		perror(pathname);
+		break;
+	}
+}
+
 void execute(char **cmd) {
-	if (strcmp(cmd[0], "fg") == 0 || strcmp(cmd[0], "bg") == 0 ||
-		strcmp(cmd[0], "stop") == 0 || strcmp(cmd[0], "jobs") == 0 ||
-		strcmp(cmd[0], "quit") == 0) {
+	if (strings_equal(cmd[0], "fg") || strings_equal(cmd[0], "bg") ||
+		strings_equal(cmd[0], "stop") || strings_equal(cmd[0], "jobs") ||
+		strings_equal(cmd[0], "quit")) {
 		fprintf(stderr, "%s: Integrated command not defined in pipe\n", cmd[0]);
 		exit(1);
 	} else {
 		if (execvp(cmd[0], cmd) == -1) {
-			switch (errno) {
-			case EACCES:
-				fprintf(stderr, "%s: Permission denied\n", cmd[0]);
-				break;
-			case ENOENT:
-				fprintf(stderr, "%s: Command not found\n", cmd[0]);
-				break;
-			default:
-				perror(cmd[0]);
-				break;
-			}
+			error_hander(cmd[0], COMMAND);
 			exit(1);
 		}
 		exit(0);

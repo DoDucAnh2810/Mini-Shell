@@ -257,8 +257,10 @@ struct cmdline *readcmd(void)
 		s->err = "misplaced pipe";
 		i--;
 		goto error;
-	} else
+	} else {
+		s->seq_len = 0;
 		free(cmd);
+	}
 	free(words);
 	s->seq = seq;
 	return s;
