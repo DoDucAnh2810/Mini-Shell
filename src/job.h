@@ -13,14 +13,6 @@
 #define TERMINATED 3
 #define FINISHED 4
 
-typedef struct {
-	pid_t gid;
-    short state;
-	int nb_running;
-	int nb_exist;
-	char *command;
-} job_t;
-
 void init_job_history();
 
 int find_job_number(pid_t gid);

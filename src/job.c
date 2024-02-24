@@ -1,6 +1,14 @@
 #include "job.h"
 #include "assert.h"
 
+typedef struct {
+	pid_t gid;
+    short state;
+	int nb_running;
+	int nb_exist;
+	char *command;
+} job_t;
+
 static job_t *job_history = NULL;
 static int highest_number = 0;
 
