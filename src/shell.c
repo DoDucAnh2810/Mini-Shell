@@ -14,7 +14,7 @@
 
 static int nb_reaped;
 static struct cmdline *l;
-static sigset_t set;
+static sigset_t shell_background_ignore_set;
 Node *gid_tracker;
 
 
@@ -25,7 +25,7 @@ void printWelcome(bool newLine) {
 }
 
 void shell_give_control(pid_t gid) {
-	Sigprocmask(SIG_BLOCK, &set, NULL);
+	Sigprocmask(SIG_BLOCK, &shell_background_ignore_set, NULL);
 	tcsetpgrp(STDIN_FILENO,  gid);
 	tcsetpgrp(STDOUT_FILENO, gid);
 	tcsetpgrp(STDERR_FILENO, gid);
@@ -35,7 +35,7 @@ void shell_regain_control() {
 	tcsetpgrp(STDIN_FILENO, Getpgrp());
 	tcsetpgrp(STDOUT_FILENO, Getpgrp());
 	tcsetpgrp(STDERR_FILENO, Getpgrp());
-	Sigprocmask(SIG_UNBLOCK, &set, NULL);
+	Sigprocmask(SIG_UNBLOCK, &shell_background_ignore_set, NULL);
 }
 
 void handlerSIGCHLD() {
@@ -47,10 +47,14 @@ void handlerSIGCHLD() {
 		if (WIFEXITED(status)) {
 			if (number != NOT_FOUND)
 				decrement_nb_exist(number, FINISHED);
+			else
+				deleteNode(&gid_tracker, pid);
 		} else if(WIFSIGNALED(status)) {
 			if (WTERMSIG(status) == SIGINT)  { printf("\n"); fflush(stdout);}
 			if (number != NOT_FOUND)
 				decrement_nb_exist(number, TERMINATED);
+			else
+				deleteNode(&gid_tracker, pid);
 		} else if (WIFSTOPPED(status)) {
 			if (WSTOPSIG(status) == SIGTSTP) { printf("\n"); fflush(stdout);}
 			if (number == NOT_FOUND)
@@ -121,9 +125,9 @@ int main(int argc, char **argv) {
 	struct timespec next_line_delay;
 	next_line_delay.tv_sec = 0;
 	next_line_delay.tv_nsec = 10000000;
-	Sigemptyset(&set);
-	Sigaddset(&set, SIGTTOU);
-	Sigaddset(&set, SIGTTIN);
+	Sigemptyset(&shell_background_ignore_set);
+	Sigaddset(&shell_background_ignore_set, SIGTTOU);
+	Sigaddset(&shell_background_ignore_set, SIGTTIN);
 
 	while (1) {
 		pid_t pid, seq_gid, gid;
@@ -182,8 +186,9 @@ int main(int argc, char **argv) {
 		if (l->seq_len == 0)
 			continue;
 		
-		/* Check for integrated command at top level */
 		nb_reaped = 0;
+
+		/* Check for integrated command at top level */
 		integrated = false;
 		cmd = l->seq[0];
 		if (strcmp(cmd[0], "quit") == 0) {
@@ -219,7 +224,6 @@ int main(int argc, char **argv) {
 			continue;
 		}
 	
-		nb_reaped = 0;
 		/* Sequence of non-integrated command */
 		for (i = 0; i < l->seq_len; i++) {
 			if (i > 0) {

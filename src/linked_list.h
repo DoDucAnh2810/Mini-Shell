@@ -17,6 +17,7 @@ void printList(Node* head);
 void freeList(Node** head);
 Node* initializeList();
 pid_t findGidByPid(Node* head, pid_t pid);
+void deleteNodesWithGid(Node** head, gid_t gid);
 
 #endif
 

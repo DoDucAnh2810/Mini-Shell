@@ -87,6 +87,31 @@ pid_t findGidByPid(Node* head, pid_t pid) {
         head = head->next;
     }
     // Return a value to indicate that the pid was not found (you can choose an appropriate value)
-    return (pid_t)-1;  // Or another suitable default value
+    return (pid_t)-1;
+}
+
+void deleteNodesWithGid(Node** head, gid_t gid) {
+    if (*head == NULL) {
+        return; // Empty list, nothing to delete
+    }
+
+    // Handle the case where the node to be deleted is at the beginning of the list
+    while (*head != NULL && (*head)->gid == gid) {
+        Node* temp = *head;
+        *head = (*head)->next;
+        free(temp);
+    }
+
+    // Traverse the list and delete nodes with the given gid
+    Node* current = *head;
+    while (current != NULL && current->next != NULL) {
+        if (current->next->gid == gid) {
+            Node* temp = current->next;
+            current->next = current->next->next;
+            free(temp);
+        } else {
+            current = current->next;
+        }
+    }
 }
 
