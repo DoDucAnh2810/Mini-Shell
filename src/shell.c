@@ -19,8 +19,7 @@ Node *gid_tracker;
 
 
 void printWelcome(bool newLine) {
-	if (newLine)
-		printf("\n");
+	if (newLine) printf("\n");
 	printf("\033[1;32mshell>\033[0m ");
 	fflush(stdout);
 }
@@ -49,15 +48,11 @@ void handlerSIGCHLD() {
 			if (number != NOT_FOUND)
 				decrement_nb_exist(number, FINISHED);
 		} else if(WIFSIGNALED(status)) {
-			if (WTERMSIG(status) == SIGINT) {
-				printf("\n"); fflush(stdout);
-			}
+			if (WTERMSIG(status) == SIGINT)  { printf("\n"); fflush(stdout);}
 			if (number != NOT_FOUND)
 				decrement_nb_exist(number, TERMINATED);
 		} else if (WIFSTOPPED(status)) {
-			if (WSTOPSIG(status) == SIGTSTP) {
-				printf("\n"); fflush(stdout);
-			}
+			if (WSTOPSIG(status) == SIGTSTP) { printf("\n"); fflush(stdout);}
 			if (number == NOT_FOUND)
 				new_job(pid, STOPPED, l->seq_len - nb_reaped, l->seq_string);
 			else
@@ -99,7 +94,6 @@ void execute(char **cmd) {
 void end_session() {
 	kill_all_job();
 	freeList(&gid_tracker);
-	while (nb_reaped < job_count());
 	destroy_job_history();
 	if (l) {
 		if (l->in) free(l->in);
@@ -210,11 +204,9 @@ int main(int argc, char **argv) {
 				Kill(-gid, SIGSTOP);
 			else {
 				set_job_state(number, RUNNING);
-				if (strcmp(cmd[0], "bg") == 0)
-					Kill(-gid, SIGCONT);
-				else {
+				Kill(-gid, SIGCONT);
+				if (strcmp(cmd[0], "fg") == 0) {
 					shell_give_control(gid);
-					Kill(-gid, SIGCONT);
 					wait_for_job(number);
 					shell_regain_control();
 				}	
