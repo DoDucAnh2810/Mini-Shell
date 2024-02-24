@@ -1,4 +1,5 @@
 #include <stdbool.h>
+#include "gid_tracker.h"
 #include "job.h"
 
 typedef struct {
@@ -171,8 +172,10 @@ void destroy_job_history() {
 
 void decrement_nb_exist(int number, short state) {
     job_history[number].nb_running--;
-    if (--job_history[number].nb_exist == 0)
+    if (--job_history[number].nb_exist == 0) {
         set_job_state(number, state);
+        delete_nodes_gid(find_job_pid(number));
+    }
 }
 
 void decrement_nb_running(int number) {

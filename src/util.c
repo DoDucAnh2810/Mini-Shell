@@ -99,3 +99,8 @@ void end_session(struct cmdline **l) {
 	free(*l);
 	exit(0);
 }
+
+void close_pipe(int *pipe) {
+	Close(pipe[0]);
+	Close(pipe[1]);
+}

@@ -71,14 +71,14 @@ int main(int argc, char **argv) {
 			continue;
 		}
 		if (l->in) {
-			file_in = Open(l->in, O_RDONLY, 777);
+			file_in = Open(l->in, O_RDONLY, 0644);
 			if (file_in == -1) {
 				error_hander(l->in, FILE);
 				continue;
 			}
 		}
 		if (l->out) {
-			file_out = Open(l->out, O_CREAT | O_WRONLY, 777);
+			file_out = Open(l->out, O_CREAT | O_WRONLY, 0644);
 			if (file_out == -1) {
 				error_hander(l->out, FILE);
 				continue;
@@ -122,10 +122,8 @@ int main(int argc, char **argv) {
 		/* Sequence of non-integrated command */
 		for (i = 0; i < l->seq_len; i++) {
 			if (i > 0) {
-				if (i > 1) {
-					Close(tube_old[0]);
-					Close(tube_old[1]);
-				}
+				if (i > 1) 
+					close_pipe(tube_old);
 				tube_old[0] = tube_new[0];
 				tube_old[1] = tube_new[1];
 			}
@@ -157,22 +155,18 @@ int main(int argc, char **argv) {
 				} else
 					Dup2(tube_new[1], 1);
 				if (i > 0){
-					Close(tube_old[0]);
-					Close(tube_old[1]);
+					close_pipe(tube_old);
 				}
-				Close(tube_new[0]);
-				Close(tube_new[1]);
+				close_pipe(tube_new);
 				cmd = l->seq[i];
 				execute(cmd);
 			}
 		}
 
-		if (l->seq_len > 1) {
-			Close(tube_old[0]);
-			Close(tube_old[1]);
-		}
-		Close(tube_new[0]);
-		Close(tube_new[1]);
+		if (l->seq_len > 1)
+			close_pipe(tube_old);
+		close_pipe(tube_new);
+		
 		if (l->foregrounded) {
 			while (nb_reaped < l->seq_len);
 			shell_regain_control();

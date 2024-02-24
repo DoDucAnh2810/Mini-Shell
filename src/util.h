@@ -20,5 +20,6 @@ void shell_regain_control();
 void error_hander(char *pathname, bool isFile);
 void execute(char **cmd);
 void end_session(struct cmdline **l);
+void close_pipe(int *pipe);
 
 #endif
