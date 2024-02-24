@@ -71,14 +71,14 @@ int main(int argc, char **argv) {
 			continue;
 		}
 		if (l->in) {
-			file_in = Open(l->in, O_RDONLY, 0644);
+			file_in = open(l->in, O_RDONLY, 0644);
 			if (file_in == -1) {
 				error_hander(l->in, FILE);
 				continue;
 			}
 		}
 		if (l->out) {
-			file_out = Open(l->out, O_CREAT | O_WRONLY, 0644);
+			file_out = open(l->out, O_CREAT | O_WRONLY, 0644);
 			if (file_out == -1) {
 				error_hander(l->out, FILE);
 				continue;

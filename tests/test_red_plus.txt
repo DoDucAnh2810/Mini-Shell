@@ -2,4 +2,5 @@
 # test_red_plus.txt - Plusieurs redirections
 #
 ls -l > out.txt
-ws -l < out.txt
+wc -l < out.txt
+rm out.txt

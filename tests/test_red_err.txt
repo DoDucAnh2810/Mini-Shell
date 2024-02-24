@@ -4,3 +4,4 @@
 touch no_rights.txt
 chmod 444 no_rights.txt
 ls -l > no_rights.txt
+rm no_rights.txt
