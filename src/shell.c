@@ -11,31 +11,10 @@
 #include "csapp.h"
 #include "job.h"
 #include "linked_list.h"
+#include "util.h"
 
 static int nb_reaped;
 static struct cmdline *l;
-static sigset_t shell_background_ignore_set;
-
-
-void printWelcome(bool newLine) {
-	if (newLine) printf("\n");
-	printf("\033[1;32mshell>\033[0m ");
-	fflush(stdout);
-}
-
-void shell_give_control(pid_t gid) {
-	Sigprocmask(SIG_BLOCK, &shell_background_ignore_set, NULL);
-	tcsetpgrp(STDIN_FILENO,  gid);
-	tcsetpgrp(STDOUT_FILENO, gid);
-	tcsetpgrp(STDERR_FILENO, gid);
-}
-
-void shell_regain_control() {
-	tcsetpgrp(STDIN_FILENO, Getpgrp());
-	tcsetpgrp(STDOUT_FILENO, Getpgrp());
-	tcsetpgrp(STDERR_FILENO, Getpgrp());
-	Sigprocmask(SIG_UNBLOCK, &shell_background_ignore_set, NULL);
-}
 
 void handlerSIGCHLD() {
 	int number, status;
@@ -66,53 +45,7 @@ void handlerSIGCHLD() {
 }
 
 void handlerPrintNewLine() {
-	printWelcome(true);
-}
-
-void execute(char **cmd) {
-	if (strcmp(cmd[0], "fg") == 0 || strcmp(cmd[0], "bg") == 0 ||
-		strcmp(cmd[0], "stop") == 0 || strcmp(cmd[0], "jobs") == 0 ||
-		strcmp(cmd[0], "quit") == 0) {
-		fprintf(stderr, "%s: Integrated command not defined in pipe\n", cmd[0]);
-		exit(1);
-	} else {
-		if (execvp(cmd[0], cmd) == -1) {
-			switch (errno) {
-			case EACCES:
-				fprintf(stderr, "%s: Permission denied\n", cmd[0]);
-				break;
-			case ENOENT:
-				fprintf(stderr, "%s: Command not found\n", cmd[0]);
-				break;
-			default:
-				perror(cmd[0]);
-				break;
-			}
-			exit(1);
-		}
-		exit(0);
-	}
-}
-
-void end_session() {
-	kill_all_job();
-	freeAllTracker();
-	destroy_job_history();
-	if (l) {
-		if (l->in) free(l->in);
-		if (l->out) free(l->out);
-		if (l->seq) {
-			for (int i = 0; l->seq[i]!=0; i++) {
-				char **cmd = l->seq[i];
-				for (int j = 0; cmd[j]!=0; j++) 
-					free(cmd[j]);
-				free(cmd);
-			}
-			free(l->seq);
-		}
-	}
-	free(l);
-	exit(0);
+	printWelcome(NEW_LINE);
 }
 
 int main(int argc, char **argv) {
@@ -120,12 +53,7 @@ int main(int argc, char **argv) {
 	Signal(SIGINT, handlerPrintNewLine);
 	Signal(SIGTSTP, handlerPrintNewLine);
 	init_job_history();
-	struct timespec next_line_delay;
-	next_line_delay.tv_sec = 0;
-	next_line_delay.tv_nsec = 10000000;
-	Sigemptyset(&shell_background_ignore_set);
-	Sigaddset(&shell_background_ignore_set, SIGTTOU);
-	Sigaddset(&shell_background_ignore_set, SIGTTIN);
+	init_util(Getpgrp());
 
 	while (1) {
 		pid_t pid, seq_gid, gid;
@@ -134,14 +62,14 @@ int main(int argc, char **argv) {
 		bool integrated;
 
 		/* Read command line */
-		nanosleep(&next_line_delay, NULL);
-		printWelcome(false);
+		delay_new_line();
+		printWelcome(SAME_LINE);
 		l = readcmd();
 
 		/* Treat command line */
 		if (!l) {
 			printf("exit\n");
-			end_session();
+			end_session(&l);
 		}
 		if (l->err) {
 			printf("error: %s\n", l->err);
@@ -190,7 +118,7 @@ int main(int argc, char **argv) {
 		integrated = false;
 		cmd = l->seq[0];
 		if (strcmp(cmd[0], "quit") == 0) {
-			end_session();
+			end_session(&l);
 			integrated = true;
 		} else if (strcmp(cmd[0], "jobs") == 0) {
 			print_jobs();
