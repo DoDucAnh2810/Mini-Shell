@@ -156,18 +156,18 @@ int main(int argc, char **argv) {
 					}
 				} else
 					Dup2(tube_new[1], 1);
-				// Close all tubes
+				// close all tubes
 				if (i > 0) close_pipe(tube_old);
 				close_pipe(tube_new);
-				// Execution
+				// execution
 				cmd = l->seq[i];
 				execute(cmd);
 			}
 		}
-		// Close all tubes
+		// close all tubes
 		if (l->seq_len > 1) close_pipe(tube_old);
 		close_pipe(tube_new);
-		// Wait if necessary
+		// wait if necessary
 		if (l->foregrounded) {
 			while (nb_reaped < l->seq_len);
 			shell_regain_control();
